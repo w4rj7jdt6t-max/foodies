@@ -26,15 +26,10 @@ const TAGS = [
 /* Eigene Filter-Merkmale für „Backen“ */
 const BAKE_TAGS = [
   { id: "kuchen", label: "Kuchen", emoji: "🍰" },
-  { id: "torten", label: "Torten", emoji: "🎂" },
   { id: "kekse", label: "Kekse & Plätzchen", emoji: "🍪" },
   { id: "muffins", label: "Muffins & Cupcakes", emoji: "🧁" },
   { id: "brot", label: "Brot", emoji: "🍞" },
   { id: "broetchen", label: "Brötchen", emoji: "🥖" },
-  { id: "hefeteig", label: "Hefeteig", emoji: "🥐" },
-  { id: "suess", label: "Süß", emoji: "🍯" },
-  { id: "herzhaft", label: "Herzhaft", emoji: "🥨" },
-  { id: "weihnachten", label: "Weihnachten", emoji: "🎄" },
 ];
 /** Platzhalter-Emoji: bei Backrezepten das erste Merkmal (🍪, 🍞 …), sonst die Kategorie */
 const recipeEmoji = (r) => (r.type === "backen" && r.tags?.length && tagById(r.tags[0])?.emoji) || catById(r.category).emoji;
@@ -46,6 +41,7 @@ const TYPES = { kochen: { label: "Kochen", emoji: "🍳" }, backen: { label: "Ba
 function normalize(r) {
   if (!r.type) r.type = r.category === "backen" ? "backen" : "kochen";
   if (!Array.isArray(r.tags)) r.tags = SAMPLE_RECIPES.find((s) => s.title === r.title)?.tags || [];
+  r.tags = r.tags.filter((t) => tagById(t)); // entfernte Merkmale aussortieren
   return r;
 }
 
