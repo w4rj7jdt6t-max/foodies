@@ -224,7 +224,7 @@ const Shop = (() => {
   function stepQty(dir) {
     const unit = $("#qty-unit").value, v = qtyVal();
     const step = qtyStep(unit, dir > 0 ? v : Math.max(v - 1, 0));
-    const next = Math.max(step, Math.round((v + dir * step) / step) * step);
+    const next = Math.max(step, nextQty(v, step, dir));
     $("#qty-amount").value = amountForInput(next);
   }
   $("#qty-minus").addEventListener("click", () => stepQty(-1));

@@ -167,10 +167,17 @@ const RECIPE_UNITS = ["", "g", "kg", "ml", "l", "EL", "TL", "Prise", "Stk.", "Ze
 
 /** sinnvolle Schrittweite für −/+ */
 function qtyStep(unit, amount) {
-  if (unit === "g" || unit === "ml") return amount >= 1000 ? 250 : amount >= 200 ? 50 : amount >= 50 ? 25 : 10;
+  if (unit === "g" || unit === "ml") return amount >= 1000 ? 250 : amount >= 500 ? 100 : amount >= 200 ? 50 : amount >= 50 ? 25 : 10;
   if (unit === "kg" || unit === "l") return 0.5;
   if (unit === "EL" || unit === "TL" || unit === "Tasse") return 0.5;
   return 1;
+}
+
+/** nächster Wert im Raster: 0,5 Bund → + → 1 Bund (nicht 2), 230 g → + → 250 g */
+function nextQty(v, step, dir) {
+  const eps = 1e-9;
+  const n = dir > 0 ? Math.floor(v / step + eps) * step + step : Math.ceil(v / step - eps) * step - step;
+  return Math.round(n * 1000) / 1000;
 }
 
 /** Rezept-Startmenge: wie Einkauf, aber Küchenmaße für Gewürze, Öl & Co. */

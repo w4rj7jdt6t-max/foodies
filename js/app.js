@@ -491,7 +491,7 @@ function stepRow(row, dir) {
   const amt = row.querySelector(".i-amount"), unit = row.querySelector(".i-unit").value;
   const v = parseAmount(amt.value) ?? 0;
   const step = qtyStep(unit, dir > 0 ? v : Math.max(v - 0.001, 0));
-  const next = Math.round((v + dir * step) / step) * step;
+  const next = nextQty(v, step, dir);
   amt.value = next > 0 ? amountForInput(next) : "";
 }
 
@@ -522,7 +522,7 @@ ingBox.addEventListener("click", (e) => {
 /** Schritt: früher nur Text, jetzt { title, text } – beides wird verstanden */
 const stepParts = (s) => (s && typeof s === "object" ? { title: s.title || "", text: s.text || "" } : { title: "", text: String(s || "") });
 
-function stepRow(value = "") {
+function prepStepRow(value = "") {
   const p = stepParts(value);
   const div = document.createElement("div");
   div.className = "text-row step-row";
@@ -537,7 +537,7 @@ function stepRow(value = "") {
 }
 
 function textRow(value = "", kind = "step") {
-  if (kind === "step") return stepRow(value);
+  if (kind === "step") return prepStepRow(value);
   const div = document.createElement("div");
   div.className = "text-row";
   div.innerHTML = `
@@ -665,7 +665,7 @@ function openEditor(recipe = null, { draft = false } = {}) {
     (items.length ? items : [undefined]).forEach((it) => box.appendChild(make(it)));
   };
   fill($("#ing-rows"), recipe?.ingredients || [{}, {}, {}], (i) => ingRow(i));
-  fill($("#step-rows"), recipe?.steps || ["", ""], (s) => stepRow(s));
+  fill($("#step-rows"), recipe?.steps || ["", ""], (s) => prepStepRow(s));
   fill($("#tip-rows"), recipe?.tips || [""], (t) => textRow(t, "tip"));
   fill($("#link-rows"), recipe?.links || [], (l) => linkRow(l));
   renumberSteps();
