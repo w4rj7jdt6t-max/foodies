@@ -622,7 +622,8 @@ function setImage(dataUrl, { auto = false, credit = null } = {}) {
   $("#image-hint").hidden = !!dataUrl;
   $("#image-remove").hidden = !dataUrl;
   $("#image-auto").hidden = !state.imageAuto;
-  $("#image-tools").hidden = !state.imageAuto;
+  $("#image-tools").hidden = !!dataUrl && !state.imageAuto;
+  $("#image-next").textContent = dataUrl ? "↻ Anderes Bild" : "✨ Bild vorschlagen";
 }
 function setImageHint(html) {
   $("#image-hint").innerHTML = html || `<span class="big">📷</span>Bild hinzufügen<br /><small>klicken oder hineinziehen</small>`;
@@ -654,7 +655,12 @@ $("#f-title").addEventListener("input", () => {
   if (state.image && !state.imageAuto) return; // eigenes Foto nie überschreiben
   autoTimer = setTimeout(() => autoPickImage($("#f-title").value), 900);
 });
-$("#image-next").addEventListener("click", () => autoPickImage($("#f-title").value, { next: true }));
+$("#image-next").addEventListener("click", async () => {
+  const title = $("#f-title").value.trim();
+  if (title.length < 3) { $("#f-title").focus(); return toast("Gib zuerst einen Titel ein ✍️"); }
+  const ok = await autoPickImage(title, { next: !!state.image });
+  if (!ok && !state.image) toast(AutoImage.lastFailedByNetwork ? "Bildsuche gerade nicht erreichbar – bitte gleich nochmal" : "Kein passendes Bild gefunden");
+});
 $("#image-own").addEventListener("click", () => $("#image-input").click());
 async function handleFile(file) {
   if (!file || !file.type.startsWith("image/")) return;
@@ -700,6 +706,7 @@ function openEditor(recipe = null, { draft = false } = {}) {
   clearTimeout(autoTimer);
   setImageHint();
   setImage(recipe?.image || null, { auto: recipe?.imageAuto, credit: recipe?.imageCredit });
+  if (recipe && !recipe.image && recipe.title) autoPickImage(recipe.title); // bestehendes Rezept ohne Bild
 
   const fill = (box, items, make) => {
     box.innerHTML = "";
@@ -919,13 +926,16 @@ async function backfillImages() {
   backfillRunning = true;
   try {
     for (const r of [...state.recipes]) {
-      if (r.image || r.autoImageTried || !r.title) continue;
+      // neuer Versuch, wenn noch nie geprüft oder der letzte erfolglose Versuch > 3 Tage her ist
+      // (die alte Markierung „autoImageTried“ wird bewusst ignoriert)
+      if (r.image || !r.title || (r.autoImageCheckedAt && Date.now() - r.autoImageCheckedAt < 3 * 86400000)) continue;
       const res = await AutoImage.pick(r.title).catch(() => null);
+      if (!res && AutoImage.lastFailedByNetwork) continue; // Bildsuche nicht erreichbar → beim nächsten Öffnen erneut
       const cur = state.recipes.find((x) => x.id === r.id);
       if (!cur || cur.image) continue; // inzwischen geändert
       const next = res
-        ? { ...cur, image: res.dataUrl, imageAuto: true, imageCredit: res.credit, autoImageTried: true }
-        : { ...cur, autoImageTried: true };
+        ? { ...cur, image: res.dataUrl, imageAuto: true, imageCredit: res.credit, autoImageCheckedAt: Date.now() }
+        : { ...cur, autoImageCheckedAt: Date.now() };
       try {
         const saved = await Store.put(next, cur);
         const i = state.recipes.findIndex((x) => x.id === r.id);

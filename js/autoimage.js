@@ -15,24 +15,31 @@ const AutoImage = (() => {
     try { const [en] = await withTimeout(TR.many([title]), 6000, [title]); return en || title; } catch { return title; }
   }
 
+  let netError = false; // merkt sich, ob eine Quelle nicht erreichbar war
   async function fromMealDb(en) {
     try {
-      const res = await fetch("https://www.themealdb.com/api/json/v1/1/search.php?s=" + encodeURIComponent(en));
-      const meals = (await res.json()).meals || [];
       const want = words(en);
+      const queries = [...new Set([en, want[want.length - 1]].filter(Boolean))];
+      const results = await Promise.all(queries.map(async (q) => {
+        const res = await fetch("https://www.themealdb.com/api/json/v1/1/search.php?s=" + encodeURIComponent(q));
+        if (!res.ok) throw new Error("mealdb " + res.status);
+        return (await res.json()).meals || [];
+      }));
+      const byId = new Map(results.flat().map((m) => [m.idMeal, m]));
+      const meals = [...byId.values()];
       return meals
         .map((m) => ({ m, score: words(m.strMeal).filter((w) => want.includes(w)).length }))
         .filter((x) => x.score >= Math.min(2, want.length))
         .sort((a, b) => b.score - a.score)
         .slice(0, 3)
         .map(({ m }) => ({ src: m.strMealThumb, credit: { title: m.strMeal, by: "TheMealDB", license: "", link: `https://www.themealdb.com/meal/${m.idMeal}` } }));
-    } catch { return []; }
+    } catch { netError = true; return []; }
   }
 
   async function fromOpenverse(q) {
     try {
       const res = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(q)}&page_size=20&mature=false`);
-      if (!res.ok) return [];
+      if (!res.ok) { netError = true; return []; }
       const data = await res.json();
       return (data.results || [])
         .filter((r) => r.thumbnail && (!r.width || !r.height || (r.width / r.height >= 0.9 && r.width / r.height <= 2.2)))
@@ -41,14 +48,14 @@ const AutoImage = (() => {
           src: r.thumbnail,
           credit: { title: r.title || "", by: r.creator || "", license: r.license ? `CC ${String(r.license).toUpperCase()}${r.license_version ? " " + r.license_version : ""}` : "", link: r.foreign_landing_url || "" },
         }));
-    } catch { return []; }
+    } catch { netError = true; return []; }
   }
 
   /** passende Bild-Kandidaten für einen Rezeptnamen */
   function candidates(title) {
     const key = title.trim().toLowerCase();
     if (!cache.has(key)) {
-      cache.set(key, (async () => {
+      const job = (async () => {
         const en = await toEnglish(title.trim());
         const [meal, ov] = await Promise.all([fromMealDb(en), fromOpenverse(en)]);
         let list = [...meal, ...ov];
@@ -60,7 +67,9 @@ const AutoImage = (() => {
         }
         const seen = new Set();
         return list.filter((c) => !seen.has(c.src) && seen.add(c.src));
-      })().catch(() => []));
+      })().catch(() => []);
+      cache.set(key, job);
+      job.then((l) => { if (!l.length) cache.delete(key); }); // nichts gefunden → später neu versuchen
     }
     return cache.get(key);
   }
@@ -76,13 +85,15 @@ const AutoImage = (() => {
 
   /** erstes ladbares Bild ab Position start */
   async function pick(title, start = 0) {
+    netError = false;
     const list = await candidates(title);
     for (let i = 0; i < list.length; i++) {
       const idx = (start + i) % list.length;
       try { return { dataUrl: await load(list[idx]), credit: list[idx].credit, idx, total: list.length }; } catch {}
     }
+    if (list.length) netError = true; // Kandidaten da, aber keiner ladbar → eher ein Netzproblem
     return null;
   }
 
-  return { candidates, pick };
+  return { candidates, pick, get lastFailedByNetwork() { return netError; } };
 })();
