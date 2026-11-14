@@ -328,7 +328,8 @@ function renderDetail() {
             </div>
           </div>
           <ul class="ing-list" id="ing-list">${ingredientsHTML(r)}</ul>
-          <p class="hint">Tipp: Antippen zum Abhaken ✓</p>
+          <p class="hint">Antippen zum Abhaken ✓ · 🛒 setzt die Zutat auf die Einkaufsliste</p>
+          ${r.ingredients.length ? `<button type="button" class="btn btn-soft add-all-btn" data-action="add-all">🛒 Alle auf die Einkaufsliste</button>` : ""}
         </section>
 
         <section class="card">
@@ -346,7 +347,10 @@ function ingredientsHTML(r) {
   if (!r.ingredients.length) return `<li class="muted">Keine Zutaten hinterlegt.</li>`;
   return r.ingredients.map((i) => {
     const amt = i.amount == null ? "" : formatAmount(i.amount * factor, i.unit);
-    return `<li><span class="ing-amt">${esc([amt, i.unit].filter(Boolean).join(" "))}</span><span>${esc(i.name)}</span></li>`;
+    const idx = r.ingredients.indexOf(i);
+    const on = !!(window.Shop && Shop.onList(r.id, idx));
+    return `<li><span class="ing-amt">${esc([amt, i.unit].filter(Boolean).join(" "))}</span><span class="ing-name">${esc(i.name)}</span>
+      <button type="button" class="ing-cart ${on ? "is-on" : ""}" data-idx="${idx}" aria-pressed="${on}" aria-label="${esc(i.name)} auf die Einkaufsliste" title="Auf die Einkaufsliste">🛒</button></li>`;
   }).join("");
 }
 
@@ -383,6 +387,14 @@ $("#detail-content").addEventListener("click", async (e) => {
     closeModal($("#detail-modal"));
     renderList();
     return toast("Rezept gelöscht 🗑️");
+  }
+  if (act === "add-all") return Shop.addAll(state.current, state.servings / state.current.servings);
+  const cart = e.target.closest(".ing-cart");
+  if (cart) {
+    const on = await Shop.toggleIngredient(state.current, +cart.dataset.idx, state.servings / state.current.servings);
+    cart.classList.toggle("is-on", on);
+    cart.setAttribute("aria-pressed", String(on));
+    return;
   }
   const li = e.target.closest(".ing-list li, .step-list li");
   if (li) li.classList.toggle("done");
@@ -648,6 +660,7 @@ async function startCloud() {
     Store.onChange(() => loadRecipes().catch(console.error)); // Änderungen vom anderen Gerät
     document.addEventListener("visibilitychange", () => { if (!document.hidden) loadRecipes().catch(() => {}); });
   }
+  Shop.load();
   offerMigration();
 }
 
@@ -677,4 +690,5 @@ async function startCloud() {
     toast("Speicher nicht verfügbar – Rezepte werden nicht gesichert.");
   }
   renderList();
+  Shop.load();
 })();

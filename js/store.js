@@ -56,13 +56,32 @@ const Store = (() => {
     await removeImage(recipe.imagePath);
   }
 
-  function onChange(cb) {
+  function onChange(cb, table = "recipes") {
     if (!cloud) return;
     let t;
-    sb.channel("recipes-sync")
-      .on("postgres_changes", { event: "*", schema: "public", table: "recipes" }, () => { clearTimeout(t); t = setTimeout(cb, 300); })
+    sb.channel(table + "-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table }, () => { clearTimeout(t); t = setTimeout(cb, 300); })
       .subscribe();
   }
+
+  /* --- Einkaufsliste: einfache Einträge ohne Bilder --- */
+  const SHOP = "shopping_items";
+  const shopLocal = DB.coll("shopping");
+  const missingTable = (e) => /PGRST205|42P01|Could not find the table|does not exist/i.test((e?.code || "") + " " + (e?.message || ""));
+  const check = ({ error }) => { if (error) { if (missingTable(error)) error.missingTable = true; throw error; } };
+  const row = (item) => ({ id: item.id, data: item, updated_at: new Date().toISOString() });
+  const shop = cloud ? {
+    all: async () => {
+      const res = await sb.from(SHOP).select("data").order("created_at", { ascending: true });
+      check(res);
+      return res.data.map((r) => r.data);
+    },
+    put: async (item) => check(await sb.from(SHOP).upsert(row(item))),
+    putMany: async (items) => items.length && check(await sb.from(SHOP).upsert(items.map(row))),
+    remove: async (id) => check(await sb.from(SHOP).delete().eq("id", id)),
+    removeMany: async (ids) => ids.length && check(await sb.from(SHOP).delete().in("id", ids)),
+    onChange: (cb) => onChange(cb, SHOP),
+  } : { ...shopLocal, onChange: () => {} };
 
   /* --- Anmeldung --- */
   const auth = {
@@ -75,7 +94,7 @@ const Store = (() => {
   };
 
   return {
-    cloud, auth, onChange,
+    cloud, auth, onChange, shop,
     all: () => (cloud ? cloudAll() : DB.all()),
     put: async (recipe, prev) => (cloud ? cloudPut(recipe, prev) : (await DB.put(recipe), recipe)),
     remove: (recipe) => (cloud ? cloudRemove(recipe) : DB.remove(recipe.id)),
