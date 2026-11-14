@@ -97,7 +97,6 @@ const Plan = (() => {
   function render() {
     const y = window.scrollY;
     const all = range(), today = all.find((d) => d.offset === 0);
-    if (!selected || !all.some((d) => d.key === selected) || selected === today.key) selected = all.find((d) => d.offset === 1).key;
     const upcoming = entries.filter((e) => days().some((d) => d.key === e.date));
     $("#plan-count").textContent = upcoming.length
       ? `${upcoming.length} ${upcoming.length === 1 ? "Mahlzeit" : "Mahlzeiten"} geplant`
@@ -117,7 +116,6 @@ const Plan = (() => {
         }).join("")}${meals.length > 3 ? `<span class="cal-more">+${meals.length - 3}</span>` : ""}</span>
       </button>`;
     };
-    const sel = all.find((d) => d.key === selected);
 
     $("#week").innerHTML = `
       <section class="day today-card is-today" data-date="${today.key}">
@@ -132,10 +130,7 @@ const Plan = (() => {
           <div class="cal-row" role="row">${w.map(cell).join("")}</div>`).join("")}
       </div>
 
-      <section class="day day-panel ${sel.past ? "is-past" : ""}" data-date="${sel.key}">
-        <header class="day-head"><strong>${esc(dayLabel(sel).main)}</strong><span>${esc(sel.offset === 1 ? dayLabel(sel).sub : sel.date.toLocaleDateString("de-DE", { day: "numeric", month: "long" }))}</span></header>
-        ${mealListHTML(sel.key, { canAdd: !sel.past })}
-      </section>`;
+      <p class="cal-hint muted">Tippe auf einen Tag, um ein Rezept einzuplanen.</p>`;
     if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
   }
 
@@ -145,15 +140,7 @@ const Plan = (() => {
     const meal = e.target.closest(".meal");
     if (meal) return openMeal(meal.dataset.id);
     const c = e.target.closest(".cal-cell");
-    if (c) {
-      const isToday = c.classList.contains("is-today");
-      if (isToday) { $(".today-card").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
-      selected = c.dataset.date;
-      render();
-      const panel = $(".day-panel");
-      const rect = panel.getBoundingClientRect();
-      if (rect.bottom > window.innerHeight) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
+    if (c) openPicker(c.dataset.date); // Tag antippen → direkt für diesen Tag planen
   });
 
   async function addEntry(date, recipe) {
@@ -169,11 +156,28 @@ const Plan = (() => {
   let pickDate = null;
   function openPicker(date) {
     pickDate = date;
-    $("#plan-pick-title").textContent = `Rezept für ${labelForKey(date)}`;
+    selected = date;
+    const d = range().find((x) => x.key === date);
+    const past = d ? d.past : false;
+    const nice = d ? d.date.toLocaleDateString("de-DE", { day: "numeric", month: "long" }) : "";
+    $("#plan-pick-title").textContent = d ? `${dayLabel(d).main}, ${nice}` : labelForKey(date);
+    const meals = mealsOn(date);
+    $("#plan-pick-planned").innerHTML = meals.length || past ? `
+      <h3 class="pick-h">${past ? "Das gab es" : "Schon geplant"}</h3>
+      ${mealListHTML(date, { canAdd: false })}` : "";
+    $("#plan-pick-add").hidden = past;
     $("#plan-pick-search").value = "";
     renderPicker();
+    render();
     openModal($("#plan-pick-modal"));
   }
+  $("#plan-pick-modal").addEventListener("close", () => { selected = null; render(); });
+  $("#plan-pick-planned").addEventListener("click", (e) => {
+    const meal = e.target.closest(".meal");
+    if (!meal) return;
+    closeModal($("#plan-pick-modal"));
+    openMeal(meal.dataset.id);
+  });
   function renderPicker() {
     const q = $("#plan-pick-search").value.trim().toLowerCase();
     const list = [...state.recipes]
