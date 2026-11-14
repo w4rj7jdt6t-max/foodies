@@ -195,7 +195,7 @@ async function claudeIdeas(q, tags, random, signal) {
 Wunsch / Suchbegriff: ${q && !random ? `"${q}"` : `keiner – überrasche mit saisonalen Ideen für ${month}`}
 Pflicht-Merkmale (JEDES Rezept muss ALLE erfüllen): ${tagText}
 
-Merkmal-IDs und Bedeutung: haehnchen=enthält Hähnchen, hack=enthält Hackfleisch, vegetarisch=ohne Fleisch und Fisch, pasta=Nudelgericht, reis=mit Reis, kartoffeln=mit Kartoffeln, warm=wird warm gegessen, kalt=wird kalt gegessen.
+Merkmal-IDs und Bedeutung: fruehstueck=Frühstücksgericht, hauptgericht=sättigendes Hauptgericht (Mittag-/Abendessen), haehnchen=enthält Hähnchen, hack=enthält Hackfleisch, vegetarisch=ohne Fleisch und Fisch, pasta=Nudelgericht, reis=mit Reis, kartoffeln=mit Kartoffeln, warm=wird warm gegessen, kalt=wird kalt gegessen.
 Kategorie-IDs: ${CAT_IDS.join(", ")}.
 
 Antworte NUR mit einem JSON-Array aus 6 Objekten in genau dieser Form:
@@ -231,7 +231,10 @@ const mealdb = async (path) => {
 };
 
 // Merkmale → Datenbank-Abfrage (warm/kalt werden anhand des Gerichts geschätzt)
+const MAIN_CATS = ["Beef", "Chicken", "Lamb", "Pork", "Seafood", "Pasta", "Vegetarian", "Vegan", "Goat", "Miscellaneous"];
 const TAG_QUERY = {
+  fruehstueck: "filter.php?c=Breakfast",
+  hauptgericht: MAIN_CATS.map((c) => "filter.php?c=" + c), // mehrere Kategorien → Vereinigung
   haehnchen: "filter.php?c=Chicken", hack: "filter.php?i=Minced_Beef", vegetarisch: "filter.php?c=Vegetarian",
   pasta: "filter.php?c=Pasta", reis: "filter.php?i=Rice", kartoffeln: "filter.php?i=Potatoes",
 };
@@ -258,7 +261,8 @@ function warmColdOk(name, tags) {
 }
 
 async function mealdbIdeas(q, tags, random) {
-  const lists = await Promise.all(tags.filter((t) => TAG_QUERY[t]).map((t) => mealdb(TAG_QUERY[t])));
+  const query = (q) => (Array.isArray(q) ? Promise.all(q.map(mealdb)).then((l) => l.flat()) : mealdb(q));
+  const lists = await Promise.all(tags.filter((t) => TAG_QUERY[t]).map((t) => query(TAG_QUERY[t])));
   let pool = null; // Map id -> meal (kurz oder vollständig)
   const intersect = (meals) => {
     const m = new Map(meals.map((x) => [x.idMeal, x]));
@@ -321,6 +325,8 @@ function mealToIdea(m) {
   if (/\brice\b/.test(all)) tags.push("reis");
   if (/potato/.test(all)) tags.push("kartoffeln");
   tags.push(COLD.test(m.strMeal) ? "kalt" : "warm");
+  if (m.strCategory === "Breakfast") tags.push("fruehstueck");
+  if (MAIN_CATS.includes(m.strCategory)) tags.push("hauptgericht");
   const steps = String(m.strInstructions || "").split(/\r?\n+/).map((s) => s.replace(/^\s*(step\s*\d+[:.)]?|\d+[.)])\s*/i, "").trim()).filter((s) => s.length > 3);
   const url = m.strSource || `https://www.themealdb.com/meal/${m.idMeal}`;
   return {

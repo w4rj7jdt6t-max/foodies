@@ -14,6 +14,8 @@ const catById = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[0];
 
 /* Genauere Filter-Merkmale (nur für „Kochen“) */
 const TAGS = [
+  { id: "fruehstueck", label: "Frühstück", emoji: "🥐" },
+  { id: "hauptgericht", label: "Hauptgericht", emoji: "🍲" },
   { id: "haehnchen", label: "Hähnchen", emoji: "🍗" },
   { id: "hack", label: "Hackfleisch", emoji: "🥩" },
   { id: "vegetarisch", label: "Vegetarisch", emoji: "🥦" },
@@ -47,7 +49,7 @@ function normalize(r) {
 
 const SAMPLE_RECIPES = [
   {
-    title: "Cremige Tomaten-Pasta", type: "kochen", category: "pasta", tags: ["pasta", "vegetarisch", "warm"], servings: 2, time: 25,
+    title: "Cremige Tomaten-Pasta", type: "kochen", category: "pasta", tags: ["hauptgericht", "pasta", "vegetarisch", "warm"], servings: 2, time: 25,
     ingredients: [
       { amount: 250, unit: "g", name: "Spaghetti" },
       { amount: 1, unit: "Dose", name: "gehackte Tomaten (400 g)" },
@@ -66,7 +68,7 @@ const SAMPLE_RECIPES = [
     tips: ["Ein Schuss Nudelwasser macht die Soße extra cremig.", "Mit Chiliflocken wird's schön scharf."],
   },
   {
-    title: "Shakshuka", type: "kochen", category: "fruehstueck", tags: ["vegetarisch", "warm"], servings: 2, time: 30,
+    title: "Shakshuka", type: "kochen", category: "fruehstueck", tags: ["fruehstueck", "vegetarisch", "warm"], servings: 2, time: 30,
     ingredients: [
       { amount: 4, unit: "Stk.", name: "Eier" },
       { amount: 1, unit: "Dose", name: "stückige Tomaten" },
