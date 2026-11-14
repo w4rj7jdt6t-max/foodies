@@ -41,18 +41,35 @@
         <button class="btn btn-primary" id="btn-new"><span aria-hidden="true">＋</span> Neu</button>
       </div>
 
+      <div class="subtabs" role="tablist" aria-label="Kochen oder Backen">
+        <button class="subtab is-active" role="tab" data-type="kochen" aria-selected="true"><span class="tab-emoji">🍳</span>Kochen</button>
+        <button class="subtab" role="tab" data-type="backen" aria-selected="false"><span class="tab-emoji">🧁</span>Backen</button>
+      </div>
+
       <div class="toolbar">
         <label class="search">
           <span aria-hidden="true">🔎</span>
           <input type="search" id="search" placeholder="Rezept oder Zutat suchen …" autocomplete="off" />
         </label>
-        <div class="chips" id="category-chips"></div>
+        <div class="filter-row">
+          <button type="button" class="filter-btn" id="btn-filter" aria-expanded="false" aria-controls="filter-panel">
+            <span aria-hidden="true">🎛️</span> Filter <span class="filter-badge" id="filter-badge" hidden></span>
+          </button>
+          <div class="chips" id="category-chips"></div>
+        </div>
+        <div class="filter-panel" id="filter-panel" hidden>
+          <div class="filter-panel-head">
+            <strong>Genauer filtern</strong>
+            <button type="button" class="link-btn" id="filter-reset">Zurücksetzen</button>
+          </div>
+          <div class="tag-picker" id="filter-tags"></div>
+        </div>
       </div>
 
       <ul class="recipe-list" id="recipe-list"></ul>
       <div class="empty" id="recipe-empty" hidden>
-        <div class="empty-emoji">🥄</div>
-        <p><strong>Noch keine Rezepte hier.</strong><br />Legt mit „＋ Neu“ euer erstes Lieblingsrezept an.</p>
+        <div class="empty-emoji" id="empty-emoji">🥄</div>
+        <p id="empty-text"></p>
       </div>
     </section>
 
@@ -87,6 +104,13 @@
             <button type="button" class="image-remove" id="image-remove" hidden aria-label="Bild entfernen">✕</button>
           </label>
           <div class="fields">
+            <div class="field">
+              <span>Art</span>
+              <div class="seg" id="f-type" role="radiogroup" aria-label="Kochen oder Backen">
+                <button type="button" class="seg-btn" data-type="kochen" role="radio">🍳 Kochen</button>
+                <button type="button" class="seg-btn" data-type="backen" role="radio">🧁 Backen</button>
+              </div>
+            </div>
             <label class="field">
               <span>Titel</span>
               <input type="text" id="f-title" placeholder="z. B. Cremige Tomaten-Pasta" required />
@@ -104,6 +128,10 @@
                 <span>Zeit (Min.)</span>
                 <input type="number" id="f-time" min="0" step="5" placeholder="30" />
               </label>
+            </div>
+            <div class="field" id="f-tags-field">
+              <span>Filter-Merkmale <small class="muted">(mehrere möglich)</small></span>
+              <div class="tag-picker" id="f-tags"></div>
             </div>
           </div>
         </div>

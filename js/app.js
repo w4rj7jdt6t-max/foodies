@@ -12,9 +12,30 @@ const CATEGORIES = [
 ];
 const catById = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[0];
 
+/* Genauere Filter-Merkmale (nur für „Kochen“) */
+const TAGS = [
+  { id: "haehnchen", label: "Hähnchen", emoji: "🍗" },
+  { id: "hack", label: "Hackfleisch", emoji: "🥩" },
+  { id: "vegetarisch", label: "Vegetarisch", emoji: "🥦" },
+  { id: "pasta", label: "Pasta", emoji: "🍝" },
+  { id: "reis", label: "Reis", emoji: "🍚" },
+  { id: "kartoffeln", label: "Kartoffeln", emoji: "🥔" },
+  { id: "warm", label: "Warm", emoji: "🔥" },
+  { id: "kalt", label: "Kalt", emoji: "🧊" },
+];
+const tagById = (id) => TAGS.find((t) => t.id === id);
+const TYPES = { kochen: { label: "Kochen", emoji: "🍳" }, backen: { label: "Backen", emoji: "🧁" } };
+
+/** ältere Rezepte ohne Art/Merkmale auf das neue Format bringen */
+function normalize(r) {
+  if (!r.type) r.type = r.category === "backen" ? "backen" : "kochen";
+  if (!Array.isArray(r.tags)) r.tags = SAMPLE_RECIPES.find((s) => s.title === r.title)?.tags || [];
+  return r;
+}
+
 const SAMPLE_RECIPES = [
   {
-    title: "Cremige Tomaten-Pasta", category: "pasta", servings: 2, time: 25,
+    title: "Cremige Tomaten-Pasta", type: "kochen", category: "pasta", tags: ["pasta", "vegetarisch", "warm"], servings: 2, time: 25,
     ingredients: [
       { amount: 250, unit: "g", name: "Spaghetti" },
       { amount: 1, unit: "Dose", name: "gehackte Tomaten (400 g)" },
@@ -33,7 +54,7 @@ const SAMPLE_RECIPES = [
     tips: ["Ein Schuss Nudelwasser macht die Soße extra cremig.", "Mit Chiliflocken wird's schön scharf."],
   },
   {
-    title: "Shakshuka", category: "fruehstueck", servings: 2, time: 30,
+    title: "Shakshuka", type: "kochen", category: "fruehstueck", tags: ["vegetarisch", "warm"], servings: 2, time: 30,
     ingredients: [
       { amount: 4, unit: "Stk.", name: "Eier" },
       { amount: 1, unit: "Dose", name: "stückige Tomaten" },
@@ -54,7 +75,11 @@ const SAMPLE_RECIPES = [
 ];
 
 /* ---------- State ---------- */
-const state = { recipes: [], search: "", category: "all", current: null, servings: 2, editing: null, image: null };
+const state = {
+  recipes: [], search: "", category: "all", type: "kochen", tags: new Set(),
+  current: null, servings: 2, editing: null, image: null, editType: "kochen", editTags: new Set(),
+};
+try { if (localStorage.getItem("foodies-type") === "backen") state.type = "backen"; } catch {}
 
 /* ---------- Helpers ---------- */
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -145,7 +170,7 @@ try {
 
 /* ================= Rezeptliste ================= */
 function renderChips() {
-  const used = new Set(state.recipes.map((r) => r.category));
+  const used = new Set(state.recipes.filter((r) => r.type === state.type).map((r) => r.category));
   const cats = CATEGORIES.filter((c) => used.has(c.id));
   if (state.category !== "all" && !used.has(state.category)) state.category = "all";
   $("#category-chips").innerHTML = cats.length < 2 ? "" :
@@ -165,17 +190,61 @@ function thumbHTML(r, cls = "thumb") {
     : `<div class="${cls} ${phClass(r)}">${catById(r.category).emoji}</div>`;
 }
 
+/* ---------- Kochen / Backen ---------- */
+document.querySelectorAll(".subtab").forEach((b) => b.addEventListener("click", () => {
+  state.type = b.dataset.type;
+  state.category = "all";
+  try { localStorage.setItem("foodies-type", state.type); } catch {}
+  renderList();
+}));
+
+/* ---------- Filter-Merkmale ---------- */
+function tagButtons(selected) {
+  return TAGS.map((t) => `<button type="button" class="tag" data-tag="${t.id}" aria-pressed="${selected.has(t.id)}">${t.emoji} ${esc(t.label)}</button>`).join("");
+}
+function renderFilter() {
+  const cooking = state.type === "kochen";
+  const btn = $("#btn-filter"), n = state.tags.size;
+  btn.hidden = !cooking;
+  if (!cooking) $("#filter-panel").hidden = true;
+  btn.setAttribute("aria-expanded", String(!$("#filter-panel").hidden));
+  btn.classList.toggle("has-active", n > 0);
+  $("#filter-badge").hidden = !n;
+  $("#filter-badge").textContent = n;
+  $("#filter-tags").innerHTML = tagButtons(state.tags);
+}
+$("#btn-filter").addEventListener("click", () => { $("#filter-panel").hidden = !$("#filter-panel").hidden; renderFilter(); });
+$("#filter-tags").addEventListener("click", (e) => {
+  const t = e.target.closest(".tag");
+  if (!t) return;
+  state.tags.has(t.dataset.tag) ? state.tags.delete(t.dataset.tag) : state.tags.add(t.dataset.tag);
+  renderList();
+});
+$("#filter-reset").addEventListener("click", () => { state.tags.clear(); renderList(); });
+
 function renderList() {
+  document.querySelectorAll(".subtab").forEach((b) => {
+    b.classList.toggle("is-active", b.dataset.type === state.type);
+    b.setAttribute("aria-selected", b.dataset.type === state.type);
+  });
   renderChips();
+  renderFilter();
   const q = state.search.trim().toLowerCase();
-  const list = state.recipes
+  const ofType = state.recipes.filter((r) => r.type === state.type);
+  const useTags = state.type === "kochen" && state.tags.size;
+  const list = ofType
     .filter((r) => state.category === "all" || r.category === state.category)
+    .filter((r) => !useTags || [...state.tags].every((t) => r.tags.includes(t)))
     .filter((r) => !q || r.title.toLowerCase().includes(q) || r.ingredients.some((i) => i.name.toLowerCase().includes(q)))
     .sort((a, b) => b.createdAt - a.createdAt);
 
-  const n = state.recipes.length;
-  $("#recipe-count").textContent = n === 0 ? "Noch leer – auf geht's!" : n === 1 ? "1 Rezept in unserer Sammlung" : `${n} Rezepte in unserer Sammlung`;
+  const total = state.recipes.length, n = ofType.length;
+  $("#recipe-count").textContent = total === 0 ? "Noch leer – auf geht's!" : total === 1 ? "1 Rezept in unserer Sammlung" : `${total} Rezepte in unserer Sammlung`;
   $("#recipe-empty").hidden = n !== 0;
+  $("#empty-emoji").textContent = state.type === "backen" ? "🧁" : "🥄";
+  $("#empty-text").innerHTML = state.type === "backen"
+    ? "<strong>Noch keine Backrezepte.</strong><br />Legt mit „＋ Neu“ euren ersten Kuchen, euer erstes Brot … an."
+    : "<strong>Noch keine Kochrezepte.</strong><br />Legt mit „＋ Neu“ euer erstes Lieblingsrezept an.";
 
   $("#recipe-list").innerHTML = list.length || !n ? list.map((r) => {
     const cat = catById(r.category);
@@ -188,6 +257,7 @@ function renderList() {
           ${r.time ? `<span>⏱️ ${r.time} Min.</span>` : ""}
           <span>👥 ${r.servings} ${r.servings === 1 ? "Portion" : "Portionen"}</span>
           <span>🧂 ${r.ingredients.length} Zutaten</span>
+          ${r.type === "kochen" && r.tags.length ? `<span class="bar-tags" title="${esc(r.tags.map((t) => tagById(t)?.label).filter(Boolean).join(", "))}">${r.tags.map((t) => tagById(t)?.emoji || "").join(" ")}</span>` : ""}
         </div>
       </div>
       <span class="bar-chevron" aria-hidden="true">›</span>
@@ -226,7 +296,9 @@ function renderDetail() {
     <div class="detail-body">
       <h2 class="detail-title">${esc(r.title)}</h2>
       <div class="meta-chips">
+        <span class="meta-chip">${TYPES[r.type].emoji} ${TYPES[r.type].label}</span>
         <span class="meta-chip">${cat.emoji} ${esc(cat.label)}</span>
+        ${r.type === "kochen" ? r.tags.map((t) => tagById(t)).filter(Boolean).map((t) => `<span class="meta-chip tag-chip">${t.emoji} ${esc(t.label)}</span>`).join("") : ""}
         ${r.time ? `<span class="meta-chip">⏱️ ${r.time} Min.</span>` : ""}
         <span class="meta-chip">🧂 ${r.ingredients.length} Zutaten</span>
         <span class="meta-chip">👩‍🍳 ${r.steps.length} Schritte</span>
@@ -387,13 +459,31 @@ const drop = $("#image-drop");
 ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
 drop.addEventListener("drop", (e) => handleFile(e.dataTransfer.files[0]));
 
+/* --- Art & Merkmale --- */
+function setEditType(type) {
+  state.editType = type;
+  document.querySelectorAll("#f-type .seg-btn").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.type === type)));
+  $("#f-tags-field").hidden = type !== "kochen";
+}
+$("#f-type").addEventListener("click", (e) => { const b = e.target.closest(".seg-btn"); if (b) setEditType(b.dataset.type); });
+$("#f-tags").addEventListener("click", (e) => {
+  const t = e.target.closest(".tag");
+  if (!t) return;
+  const on = !state.editTags.has(t.dataset.tag);
+  on ? state.editTags.add(t.dataset.tag) : state.editTags.delete(t.dataset.tag);
+  t.setAttribute("aria-pressed", String(on));
+});
+
 /* --- Öffnen / Speichern --- */
 function openEditor(recipe = null) {
   state.editing = recipe;
   $("#editor-title").textContent = recipe ? "Rezept bearbeiten" : "Neues Rezept";
   $("#f-title").value = recipe?.title || "";
   $("#f-title").classList.remove("invalid");
-  $("#f-category").value = recipe?.category || "haupt";
+  $("#f-category").value = recipe?.category || (state.type === "backen" ? "backen" : "haupt");
+  setEditType(recipe?.type || state.type);
+  state.editTags = new Set(recipe?.tags || []);
+  $("#f-tags").innerHTML = tagButtons(state.editTags);
   $("#f-servings").value = recipe?.servings || 2;
   $("#f-time").value = recipe?.time || "";
   setImage(recipe?.image || null);
@@ -433,7 +523,9 @@ form.addEventListener("submit", async (e) => {
     createdAt: state.editing?.createdAt || now,
     updatedAt: now,
     title,
+    type: state.editType,
     category: $("#f-category").value,
+    tags: state.editType === "kochen" ? TAGS.map((t) => t.id).filter((id) => state.editTags.has(id)) : [],
     servings: Math.max(1, Math.min(50, parseInt($("#f-servings").value, 10) || 2)),
     time: parseInt($("#f-time").value, 10) || null,
     image: state.image,
@@ -451,6 +543,7 @@ form.addEventListener("submit", async (e) => {
   const idx = state.recipes.findIndex((r) => r.id === recipe.id);
   if (idx >= 0) state.recipes[idx] = recipe; else state.recipes.push(recipe);
   closeModal($("#editor-modal"));
+  if (recipe.type !== state.type) { state.type = recipe.type; state.category = "all"; }
   renderList();
   toast(state.editing ? "Änderungen gespeichert ✨" : "Rezept angelegt 🎉");
   if (state.editing) openDetail(recipe.id);
@@ -459,7 +552,7 @@ form.addEventListener("submit", async (e) => {
 /* ================= Start ================= */
 (async function init() {
   try {
-    state.recipes = await DB.all();
+    state.recipes = (await DB.all()).map(normalize);
     let seeded = false;
     try { seeded = localStorage.getItem("foodies-seeded") === "1"; } catch {}
     if (!state.recipes.length && !seeded) {
