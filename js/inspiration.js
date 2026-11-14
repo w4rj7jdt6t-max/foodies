@@ -96,7 +96,12 @@ async function runSearch({ random = false } = {}) {
     }
     insp.ideas = ideas;
     renderIdeas();
-    setStatus(ideas.length ? "" : `<span class="big">🤷</span>Dazu haben wir nichts gefunden.<br />Probiert weniger Filter oder ein anderes Stichwort – oder sucht über die Links unten weiter.`);
+    if (ideas.length) setStatus("");
+    else {
+      const term = q || [...insp.tags].map((t) => tagById(t)?.label).join(" ");
+      setStatus(`<span class="big">🤷</span>Dazu hat unsere freie Rezept-Datenbank leider nichts${q ? ` zu „${esc(q)}“` : ""}.<br />Sie ist recht klein und international – deutsche Klassiker fehlen oft.
+        ${term ? `<br /><a class="btn btn-primary insp-chefkoch" href="https://www.chefkoch.de/rs/s0/${encodeURIComponent(term)}/Rezepte.html" target="_blank" rel="noopener">🔎 „${esc(term)}“ bei Chefkoch suchen ↗</a>` : ""}`);
+    }
   } catch (err) {
     if (ctl !== insp.ctl) return;
     console.error(err);
@@ -267,6 +272,55 @@ const DE_EN = {
 };
 const toEnglish = (q) => q.toLowerCase().split(/\s+/).map((w) => DE_EN[w] || w).join(" ");
 
+// Deutsche Gerichte, die es in der (englischen, internationalen) Datenbank nur als Verwandte gibt
+const DISH_SYNONYMS = {
+  "schnitzel": ["katsu", "breaded", "milanese"], "wiener schnitzel": ["katsu", "breaded"], "jägerschnitzel": ["katsu", "mushroom"],
+  "frikadellen": ["meatballs", "burger"], "frikadelle": ["meatballs", "burger"], "buletten": ["meatballs"], "köttbullar": ["meatballs"],
+  "gulasch": ["goulash", "stew"], "rouladen": ["beef", "roll"], "sauerbraten": ["pot roast", "braised beef"], "braten": ["roast"],
+  "spätzle": ["spaetzle", "dumpling"], "knödel": ["dumpling"], "klöße": ["dumpling"], "maultaschen": ["dumpling", "ravioli"],
+  "kartoffelsalat": ["potato salad"], "bratkartoffeln": ["fried potatoes", "potato"], "kartoffelpuffer": ["potato pancake", "rosti", "latke"], "reibekuchen": ["potato pancake", "rosti"],
+  "currywurst": ["sausage", "curry"], "bratwurst": ["sausage"], "eintopf": ["stew", "soup"], "linseneintopf": ["lentil soup", "lentil"],
+  "auflauf": ["bake", "casserole", "gratin"], "nudelauflauf": ["pasta bake"], "gratin": ["gratin", "bake"], "lasagne": ["lasagne", "lasagna"],
+  "flammkuchen": ["flatbread", "tart"], "pfannkuchen": ["pancake"], "kaiserschmarrn": ["pancake"], "rührei": ["scrambled eggs"], "spiegelei": ["egg"],
+  "hähnchenbrust": ["chicken breast", "chicken"], "chili con carne": ["chili"], "geschnetzeltes": ["stroganoff", "chicken"], "frikassee": ["fricassee", "chicken"],
+  "pizza": ["pizza"], "burger": ["burger"], "bolognese": ["bolognese"], "risotto": ["risotto"], "wraps": ["wrap", "burrito"], "bowl": ["bowl", "poke"],
+  "apfelkuchen": ["apple cake", "apple pie", "apple"], "käsekuchen": ["cheesecake"], "zimtschnecken": ["cinnamon roll", "cinnamon bun"], "plätzchen": ["cookie", "biscuit"],
+  "kekse": ["cookie", "biscuit"], "brownies": ["brownie"], "bananenbrot": ["banana bread"], "rührkuchen": ["cake", "pound cake"], "marmorkuchen": ["marble cake", "cake"],
+};
+
+/** alle Suchbegriffe für eine deutsche Eingabe: verwandte Gerichte, Wörterbuch und automatische Übersetzung */
+async function searchTerms(q) {
+  const low = q.toLowerCase().trim();
+  const terms = [...(DISH_SYNONYMS[low] || []), toEnglish(low)];
+  if (typeof TR !== "undefined") {
+    try {
+      const [tr] = await Promise.race([TR.many([q]), new Promise((r) => setTimeout(() => r([q]), 5000))]);
+      if (tr) terms.push(tr.toLowerCase());
+    } catch {}
+  }
+  // „Wiener Schnitzel“ → auch einzelne Wörter mit bekannten Entsprechungen
+  low.split(/\s+/).forEach((w) => (DISH_SYNONYMS[w] || []).forEach((x) => terms.push(x)));
+  return [...new Set(terms.filter((t) => t && t.length > 1))].slice(0, 6);
+}
+async function searchMeals(q) {
+  const terms = await searchTerms(q);
+  const lists = await Promise.all(terms.map((t) => mealdb("search.php?s=" + encodeURIComponent(t)).catch(() => [])));
+  let found = [...new Map(lists.flat().map((m) => [m.idMeal, m])).values()];
+  if (found.length < 4) {
+    // wenige Treffer im Namen → zusätzlich als Zutat suchen („Zucchini“ → alle Gerichte mit Zucchini)
+    const byIng = await Promise.all(terms.map((t) => mealdb("filter.php?i=" + encodeURIComponent(t.replace(/\s+/g, "_"))).catch(() => [])));
+    found = [...new Map([...found, ...byIng.flat()].map((m) => [m.idMeal, m])).values()];
+  }
+  if (!found.length) {
+    const words = terms.flatMap((t) => t.split(/\s+/)).filter((w) => w.length > 3);
+    for (const w of [...new Set(words)]) {
+      found = await mealdb("search.php?s=" + encodeURIComponent(w)).catch(() => []);
+      if (found.length) break;
+    }
+  }
+  return found;
+}
+
 function warmColdOk(name, tags) {
   const cold = COLD.test(name);
   if (tags.includes("kalt") && !cold) return false;
@@ -284,13 +338,7 @@ async function mealdbIdeas(q, tags, random) {
   };
   lists.forEach(intersect);
 
-  if (q && !random) {
-    const en = toEnglish(q);
-    let found = await mealdb("search.php?s=" + encodeURIComponent(en));
-    if (!found.length) found = await mealdb("filter.php?i=" + encodeURIComponent(en.replace(/\s+/g, "_")));
-    if (!found.length && en.includes(" ")) found = await mealdb("search.php?s=" + encodeURIComponent(en.split(" ")[0]));
-    intersect(found);
-  }
+  if (q && !random) intersect(await searchMeals(q));
 
   if (!pool) {
     // keine Suche, keine Datenbank-Filter → Zufallsideen
@@ -339,12 +387,7 @@ async function bakeIdeas(q, tags, random) {
   };
   // Ergebnis muss auch vom Namen her zum Filter passen (z. B. „bundt“ ≠ Brötchen)
   for (const t of tags) intersect((await search(BAKE_QUERY[t] || [])).filter((m) => bakeTagsFor(m.strMeal).includes(t)));
-  if (q && !random) {
-    const en = toEnglish(q);
-    let found = (await search([en])).filter(isBakeMeal);
-    if (!found.length) found = (await search([en.split(" ").pop()])).filter(isBakeMeal);
-    intersect(found);
-  }
+  if (q && !random) intersect((await searchMeals(q)).filter(isBakeMeal));
   if (!pool) pool = new Map((await search(Object.values(BAKE_QUERY).flat())).filter(isBakeMeal).map((x) => [x.idMeal, x]));
   let meals = [...pool.values()];
   if (random || !q) meals.sort(() => Math.random() - 0.5);
