@@ -358,7 +358,7 @@ function renderDetail() {
 
         <section class="card">
           <h3>Zubereitung</h3>
-          ${r.steps.length ? `<ol class="step-list">${r.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>` : `<p class="muted">Keine Schritte hinterlegt.</p>`}
+          ${r.steps.length ? `<ol class="step-list">${r.steps.map((s) => { const p = stepParts(s); return `<li>${p.title ? `<strong class="step-title">${esc(p.title)}</strong>` : ""}${p.text ? `<span class="step-text">${esc(p.text)}</span>` : ""}</li>`; }).join("")}</ol>` : `<p class="muted">Keine Schritte hinterlegt.</p>`}
         </section>
       </div>
 
@@ -519,7 +519,25 @@ ingBox.addEventListener("click", (e) => {
   pickIngredient(row, row._sugg[+li.dataset.k].name);
 });
 
+/** Schritt: früher nur Text, jetzt { title, text } – beides wird verstanden */
+const stepParts = (s) => (s && typeof s === "object" ? { title: s.title || "", text: s.text || "" } : { title: "", text: String(s || "") });
+
+function stepRow(value = "") {
+  const p = stepParts(value);
+  const div = document.createElement("div");
+  div.className = "text-row step-row";
+  div.innerHTML = `
+    <span class="num"></span>
+    <div class="step-fields">
+      <input type="text" class="s-title" placeholder="Überschrift, z. B. Anbraten" value="${esc(p.title)}" aria-label="Überschrift des Schritts" />
+      <textarea rows="2" placeholder="Was ist genau zu tun?" aria-label="Beschreibung des Schritts">${esc(p.text)}</textarea>
+    </div>
+    <button type="button" class="row-del" aria-label="Entfernen">✕</button>`;
+  return div;
+}
+
 function textRow(value = "", kind = "step") {
+  if (kind === "step") return stepRow(value);
   const div = document.createElement("div");
   div.className = "text-row";
   div.innerHTML = `
@@ -647,7 +665,7 @@ function openEditor(recipe = null, { draft = false } = {}) {
     (items.length ? items : [undefined]).forEach((it) => box.appendChild(make(it)));
   };
   fill($("#ing-rows"), recipe?.ingredients || [{}, {}, {}], (i) => ingRow(i));
-  fill($("#step-rows"), recipe?.steps || ["", ""], (s) => textRow(s, "step"));
+  fill($("#step-rows"), recipe?.steps || ["", ""], (s) => stepRow(s));
   fill($("#tip-rows"), recipe?.tips || [""], (t) => textRow(t, "tip"));
   fill($("#link-rows"), recipe?.links || [], (l) => linkRow(l));
   renumberSteps();
@@ -697,7 +715,10 @@ form.addEventListener("submit", async (e) => {
     time: parseInt($("#f-time").value, 10) || null,
     image: state.image,
     ingredients,
-    steps: texts($("#step-rows")),
+    steps: [...$("#step-rows").children].map((row) => ({
+      title: row.querySelector(".s-title").value.trim(),
+      text: row.querySelector("textarea").value.trim(),
+    })).filter((s) => s.title || s.text),
     tips: texts($("#tip-rows")),
     links: links,
   };
