@@ -67,9 +67,11 @@ function renderIdeas() {
 }
 
 async function runSearch({ random = false } = {}) {
-  insp.started = true;
   const q = $("#insp-search").value.trim();
   moreLinks(q);
+  if (!insp.provider) return setStatus("Einen Moment, die Ideen-Suche startet gerade …", { spinner: true });
+  if (insp.provider === "none") return;
+  insp.started = true;
   insp.ctl?.abort();
   const ctl = (insp.ctl = new AbortController());
   insp.ideas = [];
@@ -322,14 +324,22 @@ function mealToIdea(m) {
 (async function initInspiration() {
   renderInspFilter();
   moreLinks("");
-  if (window.claude?.use) {
+  const welcome = `<span class="big">✨</span>Sucht nach etwas, wählt Filter – oder lasst euch mit 🎲 überraschen.`;
+  setStatus(welcome);
+  const inViewer = !!window.claude?.use;
+  if (inViewer) {
     try { insp.sample = await window.claude.use("sample"); } catch { insp.sample = null; }
   }
-  insp.provider = insp.sample ? "claude" : "mealdb";
+  // Im claude.ai-Viewer sind fremde Websites gesperrt → ohne Claude bleibt nur „Weitersuchen“
+  insp.provider = insp.sample ? "claude" : inViewer ? "none" : "mealdb";
+  if (insp.provider === "none") {
+    $("#insp-source").textContent = "Rezeptideen zum Weitersuchen im Netz";
+    setStatus(`<span class="big">🔗</span>Die Ideen-Suche ist in dieser Ansicht nicht verfügbar.<br />Gebt oben einen Begriff ein und nutzt die Links zu Chefkoch und Google unten.`);
+    return;
+  }
   $("#insp-source").textContent = insp.provider === "claude"
     ? "Rezeptideen von Claude – plus Links zum Weitersuchen im Netz"
     : "Rezeptideen aus dem Internet (TheMealDB) – plus Chefkoch & Google";
-  const welcome = `<span class="big">✨</span>Sucht nach etwas, wählt Filter – oder lasst euch mit 🎲 überraschen.`;
   if (insp.provider === "claude") {
     if (!insp.started) setStatus(welcome);
   } else {
