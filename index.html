@@ -77,12 +77,56 @@
     <section class="panel" id="panel-kalender" role="tabpanel"><div class="soon"><div class="soon-emoji">🗓️</div><h2>Kalender</h2><p class="muted">Hier planen wir bald unsere Woche. Kommt als Nächstes!</p></div></section>
     <section class="panel" id="panel-reste" role="tabpanel"><div class="soon"><div class="soon-emoji">🥡</div><h2>Reste</h2><p class="muted">Was ist noch im Kühlschrank? Kommt bald.</p></div></section>
     <section class="panel" id="panel-einkauf" role="tabpanel"><div class="soon"><div class="soon-emoji">🛒</div><h2>Einkaufsliste</h2><p class="muted">Gemeinsame Einkaufsliste – kommt bald.</p></div></section>
-    <section class="panel" id="panel-inspiration" role="tabpanel"><div class="soon"><div class="soon-emoji">✨</div><h2>Inspiration</h2><p class="muted">Ideen &amp; Rezepte zum Ausprobieren – kommt bald.</p></div></section>
+    <!-- ============ INSPIRATION ============ -->
+    <section class="panel" id="panel-inspiration" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <h2>Inspiration</h2>
+          <p class="muted" id="insp-source">Rezeptideen aus dem Internet</p>
+        </div>
+      </div>
+
+      <form class="toolbar" id="insp-form" autocomplete="off">
+        <label class="search">
+          <span aria-hidden="true">🔎</span>
+          <input type="search" id="insp-search" placeholder="Worauf habt ihr Lust? z. B. Curry, Kürbis, Auflauf …" enterkeyhint="search" />
+          <button type="submit" class="search-go">Suchen</button>
+        </label>
+        <div class="filter-row">
+          <button type="button" class="filter-btn" id="insp-filter-btn" aria-expanded="false" aria-controls="insp-filter-panel">
+            <span aria-hidden="true">🎛️</span> Filter <span class="filter-badge" id="insp-filter-badge" hidden></span>
+          </button>
+          <div class="chips" id="insp-quick">
+            <button type="button" class="chip" data-random>🎲 Überrasch uns</button>
+            <button type="button" class="chip" data-q="Kürbis">🎃 Kürbis</button>
+            <button type="button" class="chip" data-q="Curry">🍛 Curry</button>
+            <button type="button" class="chip" data-q="Suppe">🥣 Suppe</button>
+            <button type="button" class="chip" data-q="Salat">🥗 Salat</button>
+          </div>
+        </div>
+        <div class="filter-panel" id="insp-filter-panel" hidden>
+          <div class="filter-panel-head">
+            <strong>Genauer filtern</strong>
+            <button type="button" class="link-btn" id="insp-filter-reset">Zurücksetzen</button>
+          </div>
+          <div class="tag-picker" id="insp-filter-tags"></div>
+        </div>
+      </form>
+
+      <div class="insp-status" id="insp-status" hidden></div>
+      <ul class="idea-grid" id="insp-results"></ul>
+      <p class="insp-more" id="insp-more"></p>
+    </section>
   </main>
 
   <!-- ============ REZEPT-DETAIL ============ -->
   <dialog class="modal" id="detail-modal">
     <div class="modal-inner" id="detail-content"></div>
+  </dialog>
+
+  <!-- ============ IDEE-DETAIL ============ -->
+  <dialog class="modal" id="idea-modal">
+    <div class="modal-inner" id="idea-content"></div>
   </dialog>
 
   <!-- ============ REZEPT-EDITOR ============ -->
@@ -177,5 +221,6 @@
 
   <script src="js/db.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/inspiration.js"></script>
 </body>
 </html>

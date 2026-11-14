@@ -475,9 +475,10 @@ $("#f-tags").addEventListener("click", (e) => {
 });
 
 /* --- Öffnen / Speichern --- */
-function openEditor(recipe = null) {
-  state.editing = recipe;
-  $("#editor-title").textContent = recipe ? "Rezept bearbeiten" : "Neues Rezept";
+function openEditor(recipe = null, { draft = false } = {}) {
+  // draft: vorausgefüllte Vorlage (z. B. aus Inspiration), wird als neues Rezept gespeichert
+  state.editing = draft ? null : recipe;
+  $("#editor-title").textContent = draft ? "Idee übernehmen" : recipe ? "Rezept bearbeiten" : "Neues Rezept";
   $("#f-title").value = recipe?.title || "";
   $("#f-title").classList.remove("invalid");
   $("#f-category").value = recipe?.category || (state.type === "backen" ? "backen" : "haupt");
@@ -544,6 +545,7 @@ form.addEventListener("submit", async (e) => {
   if (idx >= 0) state.recipes[idx] = recipe; else state.recipes.push(recipe);
   closeModal($("#editor-modal"));
   if (recipe.type !== state.type) { state.type = recipe.type; state.category = "all"; }
+  if (!state.editing) document.querySelector('.tab[data-tab="rezepte"]').click();
   renderList();
   toast(state.editing ? "Änderungen gespeichert ✨" : "Rezept angelegt 🎉");
   if (state.editing) openDetail(recipe.id);
