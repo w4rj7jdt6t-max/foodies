@@ -747,7 +747,8 @@ async function startCloud() {
   offerMigration();
 }
 
-(async function init() {
+// erst starten, wenn alle Skripte (Einkaufsliste, Inspiration …) geladen sind
+document.addEventListener("DOMContentLoaded", async function init() {
   if (Store.cloud) {
     renderList();
     const session = await Store.auth.session().catch(() => null);
@@ -774,4 +775,4 @@ async function startCloud() {
   }
   renderList();
   Shop.load();
-})();
+});

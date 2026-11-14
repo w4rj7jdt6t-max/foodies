@@ -6,9 +6,17 @@ const Shop = (() => {
    * Einträge und eigene Zutaten liegen in derselben Tabelle;
    * eigene Zutaten erkennt man an kind: "custom". */
   let customs = [];
+  let lastSig = "";
+  // Vergleich unabhängig von der Feldreihenfolge (die Datenbank sortiert JSON-Felder um)
+  const signature = (list) => [...list].sort((a, b) => (a.id < b.id ? -1 : 1))
+    .map((o) => JSON.stringify(o, Object.keys(o).sort())).join("\n");
   async function load() {
     try {
       const all = await Store.shop.all();
+      // eigene Änderungen kommen über die Live-Synchronisation zurück – dann nichts neu zeichnen
+      const sig = signature(all);
+      if (sig === lastSig) return;
+      lastSig = sig;
       customs = all.filter((i) => i.kind === "custom");
       items = all.filter((i) => i.kind !== "custom");
       setCustomGroceries(customs);
@@ -24,11 +32,14 @@ const Shop = (() => {
     refreshRecipeButtons();
   }
 
+  const syncSig = () => { lastSig = signature([...customs, ...items]); };
   async function save(list) {
+    syncSig();
     try { await Store.shop.putMany(list); }
     catch (err) { console.error(err); toast(err?.missingTable ? "Einkaufsliste ist noch nicht eingerichtet" : "Speichern fehlgeschlagen 😕"); }
   }
   async function drop(ids) {
+    syncSig();
     try { await Store.shop.removeMany(ids); }
     catch (err) { console.error(err); toast("Löschen fehlgeschlagen 😕"); }
   }
@@ -75,22 +86,32 @@ const Shop = (() => {
     return [i.amount == null ? "" : formatAmount(i.amount, i.unit), i.unit].filter(Boolean).join(" ");
   }
 
-  function render() {
+  function renderCounts() {
     const open = items.filter((i) => !i.checked).length, done = items.length - open;
     $("#shop-count").textContent = !items.length ? "Noch nichts auf der Liste" : `${open} offen · ${done} erledigt`;
     $("#shop-empty").hidden = items.length > 0;
     $("#shop-actions").hidden = items.length === 0;
     $("#shop-clear-done").disabled = done === 0;
+    document.querySelectorAll("#shop-sections .shop-cat").forEach((sec) => {
+      const left = items.filter((i) => i.cat === sec.dataset.cat && !i.checked).length;
+      sec.querySelector(".shop-cat-count").textContent = left ? left : "✓";
+    });
+  }
 
+  function render() {
+    const y = window.scrollY; // Scrollposition beim Neuzeichnen halten (Safari hat kein Scroll-Anchoring)
+    // feste Reihenfolge: Einträge bleiben beim Abhaken an ihrem Platz
     $("#shop-sections").innerHTML = SHOP_CATS.map((c) => {
-      const list = items.filter((i) => i.cat === c.id).sort((a, b) => a.checked - b.checked || a.createdAt - b.createdAt);
+      const list = items.filter((i) => i.cat === c.id).sort((a, b) => a.createdAt - b.createdAt);
       if (!list.length) return "";
       const left = list.filter((i) => !i.checked).length;
-      return `<section class="shop-cat">
+      return `<section class="shop-cat" data-cat="${c.id}">
         <h3 class="shop-cat-head"><span class="shop-cat-emoji">${c.emoji}</span>${esc(c.label)}<span class="shop-cat-count">${left ? left : "✓"}</span></h3>
         <ul class="shop-list">${list.map(itemHTML).join("")}</ul>
       </section>`;
     }).join("");
+    renderCounts();
+    if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
   }
 
   function itemHTML(i) {
@@ -341,8 +362,13 @@ const Shop = (() => {
     const act = e.target.closest("[data-act]")?.dataset.act;
     if (act === "toggle") {
       item.checked = !item.checked;
-      li.classList.toggle("is-checked", item.checked); // sofortiges Feedback, dann sortieren
-      setTimeout(render, 350);
+      // nur diesen Eintrag ändern – kein Neuzeichnen, nichts verrutscht
+      li.classList.toggle("is-checked", item.checked);
+      const btn = li.querySelector(".shop-check");
+      btn.setAttribute("aria-pressed", String(item.checked));
+      btn.setAttribute("aria-label", `${item.name} ${item.checked ? "nicht mehr abhaken" : "abhaken"}`);
+      btn.blur();
+      renderCounts();
       await save([item]);
     } else if (act === "delete") {
       items = items.filter((i) => i !== item);
