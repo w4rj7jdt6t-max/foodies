@@ -184,7 +184,8 @@ function closeModal(dlg) { dlg.close(); }
 document.querySelectorAll(".modal").forEach((dlg) => {
   dlg.addEventListener("close", () => { if (!document.querySelector(".modal[open]")) document.body.classList.remove("modal-open"); });
   dlg.addEventListener("click", (e) => {
-    if (e.target === dlg) closeModal(dlg); // Klick auf Hintergrund
+    // Klick auf den Hintergrund schließt – aber nie den Rezept-Editor (sonst gehen Eingaben verloren)
+    if (e.target === dlg && dlg.id !== "editor-modal") closeModal(dlg);
     if (e.target.closest("[data-close]")) closeModal(dlg);
   });
 });
@@ -363,7 +364,6 @@ function renderDetail() {
       </div>
 
       ${r.tips.length ? `<section class="card tips-card"><h3>Tipps &amp; Hinweise</h3><ul>${r.tips.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></section>` : ""}
-      ${r.image && r.imageCredit ? `<p class="photo-credit">📷 Foto${r.imageCredit.title ? `: „${esc(r.imageCredit.title)}“` : ""}${r.imageCredit.by ? ` von ${esc(r.imageCredit.by)}` : ""}${r.imageCredit.license ? ` · ${esc(r.imageCredit.license)}` : ""}${r.imageCredit.link && cleanUrl(r.imageCredit.link) ? ` · <a href="${esc(cleanUrl(r.imageCredit.link))}" target="_blank" rel="noopener noreferrer">Quelle ↗</a>` : ""} · automatisch gewählt</p>` : ""}
       ${(r.links || []).length ? `<section class="card links-card"><h3>Links</h3><ul class="link-list">${r.links.map((l) => `<li>
         <a class="link-item" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">
           <span class="link-icon" aria-hidden="true">🔗</span>
@@ -611,64 +611,21 @@ form.addEventListener("input", (e) => {
   if (e.target.classList.contains("invalid")) e.target.classList.remove("invalid");
 });
 
-/* --- Bild --- */
-function setImage(dataUrl, { auto = false, credit = null } = {}) {
+/* --- Bild (nur eigene Fotos; ohne Foto zeigt die Seite ein Emoji) --- */
+function setImage(dataUrl) {
   state.image = dataUrl;
-  state.imageAuto = !!(dataUrl && auto);
-  state.imageCredit = dataUrl && auto ? credit : null;
   const img = $("#image-preview");
   img.hidden = !dataUrl;
   if (dataUrl) img.src = dataUrl; else img.removeAttribute("src");
   $("#image-hint").hidden = !!dataUrl;
   $("#image-remove").hidden = !dataUrl;
-  $("#image-auto").hidden = !state.imageAuto;
-  $("#image-tools").hidden = !!dataUrl && !state.imageAuto;
-  $("#image-next").textContent = dataUrl ? "↻ Anderes Bild" : "✨ Bild vorschlagen";
 }
-function setImageHint(html) {
-  $("#image-hint").innerHTML = html || `<span class="big">📷</span>Bild hinzufügen<br /><small>klicken oder hineinziehen</small>`;
-}
-
-/* --- Automatisches Bild passend zum Titel --- */
-let autoToken = 0, autoIdx = 0, autoTimer;
-async function autoPickImage(title, { next = false } = {}) {
-  title = title.trim();
-  if (title.length < 3) return false;
-  const token = ++autoToken;
-  if (!state.image) setImageHint(`<span class="big">🔎</span>Suche passendes Bild …<br /><small>oder eigenes hinzufügen</small>`);
-  $("#image-next").disabled = true;
-  autoIdx = next ? autoIdx + 1 : 0;
-  const res = await AutoImage.pick(title, autoIdx).catch(() => null);
-  $("#image-next").disabled = false;
-  if (token !== autoToken) return false; // inzwischen anderer Titel / eigenes Bild
-  if (!res) {
-    if (!state.image) setImageHint(`<span class="big">📷</span>Kein passendes Bild gefunden<br /><small>eigenes hinzufügen</small>`);
-    return false;
-  }
-  autoIdx = res.idx;
-  setImage(res.dataUrl, { auto: true, credit: res.credit });
-  setImageHint();
-  return true;
-}
-$("#f-title").addEventListener("input", () => {
-  clearTimeout(autoTimer);
-  if (state.image && !state.imageAuto) return; // eigenes Foto nie überschreiben
-  autoTimer = setTimeout(() => autoPickImage($("#f-title").value), 900);
-});
-$("#image-next").addEventListener("click", async () => {
-  const title = $("#f-title").value.trim();
-  if (title.length < 3) { $("#f-title").focus(); return toast("Gib zuerst einen Titel ein ✍️"); }
-  const ok = await autoPickImage(title, { next: !!state.image });
-  if (!ok && !state.image) toast(AutoImage.lastFailedByNetwork ? "Bildsuche gerade nicht erreichbar – bitte gleich nochmal" : "Kein passendes Bild gefunden");
-});
-$("#image-own").addEventListener("click", () => $("#image-input").click());
 async function handleFile(file) {
   if (!file || !file.type.startsWith("image/")) return;
-  autoToken++; // laufende automatische Suche verwerfen
-  try { setImage(await compressImage(file)); } catch (err) { toast(err.message); }
+  try { setImage(await compressImage(file)); saveDraftSoon(); } catch (err) { toast(err.message); }
 }
 $("#image-input").addEventListener("change", (e) => { handleFile(e.target.files[0]); e.target.value = ""; });
-$("#image-remove").addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); autoToken++; setImage(null); setImageHint(); });
+$("#image-remove").addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); setImage(null); saveDraftSoon(); });
 const drop = $("#image-drop");
 ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
 ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
@@ -691,7 +648,60 @@ $("#f-tags").addEventListener("click", (e) => {
 });
 
 /* --- Öffnen / Speichern --- */
-function openEditor(recipe = null, { draft = false } = {}) {
+/* --- Entwurf: ungespeicherte Eingaben im Browser sichern --- */
+const DRAFT_KEY = "foodies-draft";
+let draftTimer;
+function readEditor() {
+  return {
+    title: $("#f-title").value,
+    type: state.editType,
+    category: $("#f-category").value,
+    tags: [...state.editTags],
+    servings: parseInt($("#f-servings").value, 10) || 2,
+    time: parseInt($("#f-time").value, 10) || null,
+    image: state.image,
+    ingredients: [...$("#ing-rows").children].map((row) => ({
+      amount: parseAmount(row.querySelector(".i-amount").value),
+      unit: row.querySelector(".i-unit").value,
+      name: row.querySelector(".i-name").value,
+    })).filter((i) => i.name.trim() || i.amount != null),
+    steps: [...$("#step-rows").children].map((row) => ({ title: row.querySelector(".s-title").value, text: row.querySelector("textarea").value })).filter((x) => x.title.trim() || x.text.trim()),
+    tips: [...$("#tip-rows").querySelectorAll("textarea")].map((t) => t.value).filter((t) => t.trim()),
+    links: [...$("#link-rows").children].map((row) => ({ url: row.querySelector(".l-url").value, title: row.querySelector(".l-title").value })).filter((l) => l.url.trim()),
+  };
+}
+function saveDraft() {
+  if (!$("#editor-modal").open) return;
+  const d = readEditor();
+  if (!d.title.trim() && !d.ingredients.length && !d.steps.length && !d.tips.length) return;
+  const entry = { forId: state.editing?.id || null, savedAt: Date.now(), data: d };
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(entry)); }
+  catch { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...entry, data: { ...d, image: null } })); } catch {} } // zu groß → ohne Foto
+}
+function saveDraftSoon() { clearTimeout(draftTimer); draftTimer = setTimeout(saveDraft, 500); }
+function clearDraft() { clearTimeout(draftTimer); try { localStorage.removeItem(DRAFT_KEY); } catch {} }
+function readDraft() { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch { return null; } }
+["input", "change"].forEach((ev) => form.addEventListener(ev, saveDraftSoon));
+form.addEventListener("click", (e) => { if (e.target.closest("button")) saveDraftSoon(); });
+
+function showDraftBanner(recipe) {
+  const d = readDraft();
+  const banner = $("#draft-banner");
+  banner.hidden = !(d && d.forId === (recipe?.id || null) && d.data);
+  if (banner.hidden) return;
+  const time = new Date(d.savedAt).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  $("#draft-text").textContent = `Nicht gespeicherter Entwurf${d.data.title ? ` „${d.data.title}“` : ""} von ${time} gefunden.`;
+  $("#draft-restore").onclick = () => {
+    const base = state.editing;
+    banner.hidden = true;
+    openEditor(base ? { ...base, ...d.data } : d.data, { draft: !base, fromDraft: true });
+    if (!base) $("#editor-title").textContent = "Neues Rezept";
+    toast("Entwurf wiederhergestellt ✍️");
+  };
+  $("#draft-discard").onclick = () => { clearDraft(); banner.hidden = true; };
+}
+
+function openEditor(recipe = null, { draft = false, fromDraft = false } = {}) {
   // draft: vorausgefüllte Vorlage (z. B. aus Inspiration), wird als neues Rezept gespeichert
   state.editing = draft ? null : recipe;
   $("#editor-title").textContent = draft ? "Idee übernehmen" : recipe ? "Rezept bearbeiten" : "Neues Rezept";
@@ -702,11 +712,7 @@ function openEditor(recipe = null, { draft = false } = {}) {
   setEditType(recipe?.type || state.type);
   $("#f-servings").value = recipe?.servings || 2;
   $("#f-time").value = recipe?.time || "";
-  autoToken++;
-  clearTimeout(autoTimer);
-  setImageHint();
-  setImage(recipe?.image || null, { auto: recipe?.imageAuto, credit: recipe?.imageCredit });
-  if (recipe && !recipe.image && recipe.title) autoPickImage(recipe.title); // bestehendes Rezept ohne Bild
+  setImage(recipe?.image || null);
 
   const fill = (box, items, make) => {
     box.innerHTML = "";
@@ -717,7 +723,8 @@ function openEditor(recipe = null, { draft = false } = {}) {
   fill($("#tip-rows"), recipe?.tips || [""], (t) => textRow(t, "tip"));
   fill($("#link-rows"), recipe?.links || [], (l) => linkRow(l));
   renumberSteps();
-  openModal($("#editor-modal"));
+  if (fromDraft) $("#draft-banner").hidden = true; else showDraftBanner(draft ? null : recipe);
+  if (!$("#editor-modal").open) openModal($("#editor-modal"));
   form.querySelectorAll("textarea").forEach((t) => { t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; });
   if (!recipe) $("#f-title").focus();
 }
@@ -762,8 +769,6 @@ form.addEventListener("submit", async (e) => {
     servings: Math.max(1, Math.min(50, parseInt($("#f-servings").value, 10) || 2)),
     time: parseInt($("#f-time").value, 10) || null,
     image: state.image,
-    imageAuto: state.imageAuto || false,
-    imageCredit: state.imageCredit || null,
     ingredients,
     steps: [...$("#step-rows").children].map((row) => ({
       title: row.querySelector(".s-title").value.trim(),
@@ -775,19 +780,21 @@ form.addEventListener("submit", async (e) => {
 
   const saveBtn = form.querySelector('button[type="submit"]');
   saveBtn.disabled = true;
-  // kein Bild? → automatisch eines suchen, damit kein Rezept ohne Bild ist
-  if (!recipe.image) {
-    saveBtn.textContent = "Suche Bild …";
-    clearTimeout(autoTimer);
-    const found = await Promise.race([autoPickImage(title), new Promise((r) => setTimeout(() => r(false), 9000))]);
-    if (found && state.image) Object.assign(recipe, { image: state.image, imageAuto: true, imageCredit: state.imageCredit });
-  }
   saveBtn.textContent = "Speichere …";
+  let photoFailed = false;
   try {
-    recipe = await Store.put(recipe, state.editing);
+    try {
+      recipe = await Store.put(recipe, state.editing);
+    } catch (err) {
+      // Klappt nur das Hochladen des Fotos nicht, das Rezept trotzdem (ohne neues Foto) sichern
+      if (!(recipe.image && recipe.image.startsWith("data:"))) throw err;
+      console.error(err);
+      recipe = await Store.put({ ...recipe, image: state.editing?.image || null }, state.editing);
+      photoFailed = true;
+    }
   } catch (err) {
     console.error(err);
-    return toast(Store.cloud ? "Speichern fehlgeschlagen – seid ihr online? 😕" : "Speichern fehlgeschlagen 😕");
+    return toast(Store.cloud ? "Speichern fehlgeschlagen – seid ihr online? Euer Entwurf bleibt erhalten." : "Speichern fehlgeschlagen 😕");
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = "Rezept speichern";
@@ -798,8 +805,8 @@ form.addEventListener("submit", async (e) => {
   if (recipe.type !== state.type) { state.type = recipe.type; state.category = "all"; }
   if (!state.editing) document.querySelector('.tab[data-tab="rezepte"]').click();
   renderList();
-  toast(state.editing ? "Änderungen gespeichert ✨" : "Rezept angelegt 🎉");
-  if (!recipe.image) backfillImages(); // Bildsuche dauerte zu lange → im Hintergrund nachholen
+  toast(photoFailed ? "Rezept gespeichert – das Foto konnte aber nicht hochgeladen werden 📷" : state.editing ? "Änderungen gespeichert ✨" : "Rezept angelegt 🎉");
+  clearDraft();
   if (state.editing) openDetail(recipe.id);
 });
 
@@ -884,7 +891,7 @@ async function startCloud() {
   Shop.load();
   Plan.load();
   offerMigration();
-  backfillImages();
+  removeAutoImages();
 }
 
 // erst starten, wenn alle Skripte (Einkaufsliste, Inspiration …) geladen sind
@@ -916,32 +923,23 @@ document.addEventListener("DOMContentLoaded", async function init() {
   renderList();
   Shop.load();
   Plan.load();
-  backfillImages();
+  removeAutoImages();
 });
 
-/* --- Rezepte ohne Bild bekommen einmalig automatisch eines --- */
-let backfillRunning = false;
-async function backfillImages() {
-  if (backfillRunning) return;
-  backfillRunning = true;
+/* --- Früher automatisch gesetzte Bilder wieder entfernen (eigene Fotos bleiben) --- */
+let cleanupRunning = false;
+async function removeAutoImages() {
+  if (cleanupRunning) return;
+  cleanupRunning = true;
   try {
-    for (const r of [...state.recipes]) {
-      // neuer Versuch, wenn noch nie geprüft oder der letzte erfolglose Versuch > 3 Tage her ist
-      // (die alte Markierung „autoImageTried“ wird bewusst ignoriert)
-      if (r.image || !r.title || (r.autoImageCheckedAt && Date.now() - r.autoImageCheckedAt < 3 * 86400000)) continue;
-      const res = await AutoImage.pick(r.title).catch(() => null);
-      if (!res && AutoImage.lastFailedByNetwork) continue; // Bildsuche nicht erreichbar → beim nächsten Öffnen erneut
-      const cur = state.recipes.find((x) => x.id === r.id);
-      if (!cur || cur.image) continue; // inzwischen geändert
-      const next = res
-        ? { ...cur, image: res.dataUrl, imageAuto: true, imageCredit: res.credit, autoImageCheckedAt: Date.now() }
-        : { ...cur, autoImageCheckedAt: Date.now() };
+    for (const r of state.recipes.filter((x) => x.imageAuto && x.image)) {
+      const { imageAuto, imageCredit, autoImageCheckedAt, autoImageTried, ...rest } = r;
       try {
-        const saved = await Store.put(next, cur);
+        const saved = await Store.put({ ...rest, image: null }, r);
         const i = state.recipes.findIndex((x) => x.id === r.id);
         if (i >= 0) state.recipes[i] = normalize(saved);
-        renderList();
       } catch (err) { console.error(err); }
     }
-  } finally { backfillRunning = false; }
+    renderList();
+  } finally { cleanupRunning = false; }
 }
