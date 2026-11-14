@@ -363,6 +363,7 @@ function renderDetail() {
       </div>
 
       ${r.tips.length ? `<section class="card tips-card"><h3>Tipps &amp; Hinweise</h3><ul>${r.tips.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></section>` : ""}
+      ${r.image && r.imageCredit ? `<p class="photo-credit">📷 Foto${r.imageCredit.title ? `: „${esc(r.imageCredit.title)}“` : ""}${r.imageCredit.by ? ` von ${esc(r.imageCredit.by)}` : ""}${r.imageCredit.license ? ` · ${esc(r.imageCredit.license)}` : ""}${r.imageCredit.link && cleanUrl(r.imageCredit.link) ? ` · <a href="${esc(cleanUrl(r.imageCredit.link))}" target="_blank" rel="noopener noreferrer">Quelle ↗</a>` : ""} · automatisch gewählt</p>` : ""}
       ${(r.links || []).length ? `<section class="card links-card"><h3>Links</h3><ul class="link-list">${r.links.map((l) => `<li>
         <a class="link-item" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">
           <span class="link-icon" aria-hidden="true">🔗</span>
@@ -611,20 +612,57 @@ form.addEventListener("input", (e) => {
 });
 
 /* --- Bild --- */
-function setImage(dataUrl) {
+function setImage(dataUrl, { auto = false, credit = null } = {}) {
   state.image = dataUrl;
+  state.imageAuto = !!(dataUrl && auto);
+  state.imageCredit = dataUrl && auto ? credit : null;
   const img = $("#image-preview");
   img.hidden = !dataUrl;
   if (dataUrl) img.src = dataUrl; else img.removeAttribute("src");
   $("#image-hint").hidden = !!dataUrl;
   $("#image-remove").hidden = !dataUrl;
+  $("#image-auto").hidden = !state.imageAuto;
+  $("#image-tools").hidden = !state.imageAuto;
 }
+function setImageHint(html) {
+  $("#image-hint").innerHTML = html || `<span class="big">📷</span>Bild hinzufügen<br /><small>klicken oder hineinziehen</small>`;
+}
+
+/* --- Automatisches Bild passend zum Titel --- */
+let autoToken = 0, autoIdx = 0, autoTimer;
+async function autoPickImage(title, { next = false } = {}) {
+  title = title.trim();
+  if (title.length < 3) return false;
+  const token = ++autoToken;
+  if (!state.image) setImageHint(`<span class="big">🔎</span>Suche passendes Bild …<br /><small>oder eigenes hinzufügen</small>`);
+  $("#image-next").disabled = true;
+  autoIdx = next ? autoIdx + 1 : 0;
+  const res = await AutoImage.pick(title, autoIdx).catch(() => null);
+  $("#image-next").disabled = false;
+  if (token !== autoToken) return false; // inzwischen anderer Titel / eigenes Bild
+  if (!res) {
+    if (!state.image) setImageHint(`<span class="big">📷</span>Kein passendes Bild gefunden<br /><small>eigenes hinzufügen</small>`);
+    return false;
+  }
+  autoIdx = res.idx;
+  setImage(res.dataUrl, { auto: true, credit: res.credit });
+  setImageHint();
+  return true;
+}
+$("#f-title").addEventListener("input", () => {
+  clearTimeout(autoTimer);
+  if (state.image && !state.imageAuto) return; // eigenes Foto nie überschreiben
+  autoTimer = setTimeout(() => autoPickImage($("#f-title").value), 900);
+});
+$("#image-next").addEventListener("click", () => autoPickImage($("#f-title").value, { next: true }));
+$("#image-own").addEventListener("click", () => $("#image-input").click());
 async function handleFile(file) {
   if (!file || !file.type.startsWith("image/")) return;
+  autoToken++; // laufende automatische Suche verwerfen
   try { setImage(await compressImage(file)); } catch (err) { toast(err.message); }
 }
 $("#image-input").addEventListener("change", (e) => { handleFile(e.target.files[0]); e.target.value = ""; });
-$("#image-remove").addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); setImage(null); });
+$("#image-remove").addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); autoToken++; setImage(null); setImageHint(); });
 const drop = $("#image-drop");
 ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
 ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
@@ -658,7 +696,10 @@ function openEditor(recipe = null, { draft = false } = {}) {
   setEditType(recipe?.type || state.type);
   $("#f-servings").value = recipe?.servings || 2;
   $("#f-time").value = recipe?.time || "";
-  setImage(recipe?.image || null);
+  autoToken++;
+  clearTimeout(autoTimer);
+  setImageHint();
+  setImage(recipe?.image || null, { auto: recipe?.imageAuto, credit: recipe?.imageCredit });
 
   const fill = (box, items, make) => {
     box.innerHTML = "";
@@ -714,6 +755,8 @@ form.addEventListener("submit", async (e) => {
     servings: Math.max(1, Math.min(50, parseInt($("#f-servings").value, 10) || 2)),
     time: parseInt($("#f-time").value, 10) || null,
     image: state.image,
+    imageAuto: state.imageAuto || false,
+    imageCredit: state.imageCredit || null,
     ingredients,
     steps: [...$("#step-rows").children].map((row) => ({
       title: row.querySelector(".s-title").value.trim(),
@@ -725,6 +768,13 @@ form.addEventListener("submit", async (e) => {
 
   const saveBtn = form.querySelector('button[type="submit"]');
   saveBtn.disabled = true;
+  // kein Bild? → automatisch eines suchen, damit kein Rezept ohne Bild ist
+  if (!recipe.image) {
+    saveBtn.textContent = "Suche Bild …";
+    clearTimeout(autoTimer);
+    const found = await Promise.race([autoPickImage(title), new Promise((r) => setTimeout(() => r(false), 9000))]);
+    if (found && state.image) Object.assign(recipe, { image: state.image, imageAuto: true, imageCredit: state.imageCredit });
+  }
   saveBtn.textContent = "Speichere …";
   try {
     recipe = await Store.put(recipe, state.editing);
@@ -742,6 +792,7 @@ form.addEventListener("submit", async (e) => {
   if (!state.editing) document.querySelector('.tab[data-tab="rezepte"]').click();
   renderList();
   toast(state.editing ? "Änderungen gespeichert ✨" : "Rezept angelegt 🎉");
+  if (!recipe.image) backfillImages(); // Bildsuche dauerte zu lange → im Hintergrund nachholen
   if (state.editing) openDetail(recipe.id);
 });
 
@@ -826,6 +877,7 @@ async function startCloud() {
   Shop.load();
   Plan.load();
   offerMigration();
+  backfillImages();
 }
 
 // erst starten, wenn alle Skripte (Einkaufsliste, Inspiration …) geladen sind
@@ -857,4 +909,29 @@ document.addEventListener("DOMContentLoaded", async function init() {
   renderList();
   Shop.load();
   Plan.load();
+  backfillImages();
 });
+
+/* --- Rezepte ohne Bild bekommen einmalig automatisch eines --- */
+let backfillRunning = false;
+async function backfillImages() {
+  if (backfillRunning) return;
+  backfillRunning = true;
+  try {
+    for (const r of [...state.recipes]) {
+      if (r.image || r.autoImageTried || !r.title) continue;
+      const res = await AutoImage.pick(r.title).catch(() => null);
+      const cur = state.recipes.find((x) => x.id === r.id);
+      if (!cur || cur.image) continue; // inzwischen geändert
+      const next = res
+        ? { ...cur, image: res.dataUrl, imageAuto: true, imageCredit: res.credit, autoImageTried: true }
+        : { ...cur, autoImageTried: true };
+      try {
+        const saved = await Store.put(next, cur);
+        const i = state.recipes.findIndex((x) => x.id === r.id);
+        if (i >= 0) state.recipes[i] = normalize(saved);
+        renderList();
+      } catch (err) { console.error(err); }
+    }
+  } finally { backfillRunning = false; }
+}
