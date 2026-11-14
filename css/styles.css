@@ -298,8 +298,11 @@ body.modal-open { overflow: hidden; }
 /* ---------- Editor ---------- */
 .editor { padding-bottom: 0; }
 .editor .section { margin: 14px 24px; border: 1px solid var(--line); min-width: 0; }
-.editor legend { display: flex; align-items: center; gap: 10px; padding: 0; margin-bottom: 12px; font-family: var(--font-display); font-weight: 600; font-size: 19px; color: var(--mint-900); float: left; width: 100%; }
-.editor legend + * { clear: both; }
+/* Legende als eigener Block oberhalb des Inhalts (kein float – der verschob auf dem Handy die Zutaten) */
+/* float holt die Legende in die Karte; ALLE folgenden Elemente räumen den float (vorher nur das erste –
+   das war auf dem Handy ausgeblendet, daher rutschten die Zutaten daneben) */
+.editor legend { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 0; margin-bottom: 12px; font-family: var(--font-display); font-weight: 600; font-size: 19px; color: var(--mint-900); float: left; width: 100%; }
+.editor .section > :not(legend) { clear: both; }
 .editor legend small { font-family: var(--font-body); font-size: 12.5px; font-weight: 500; }
 .step-badge { width: 28px; height: 28px; flex: 0 0 28px; border-radius: 50%; display: grid; place-items: center; background: var(--mint-100); color: var(--mint-700); font-family: var(--font-body); font-weight: 800; font-size: 14px; }
 
@@ -448,8 +451,29 @@ body.locked .tabs, body.locked main { display: none; }
   .field-row { grid-template-columns: 1fr 1fr; }
   .field-row .field:first-child { grid-column: 1 / -1; }
   .ing-head { display: none; }
-  .ing-row { grid-template-columns: 70px 84px 1fr 34px; gap: 6px; }
-  .ing-row input { padding: 10px; }
-  .modal { width: 100%; max-width: 100%; max-height: 100%; height: 100%; border-radius: 0; margin: 0; }
-  .modal-inner { max-height: 100vh; height: 100%; }
+  .editor legend small { flex-basis: 100%; padding-left: 38px; }
+  /* Zutat als kleine Karte: oben Menge + Einheit, darunter der Name in voller Breite */
+  .ing-row {
+    grid-template-columns: 1fr 1fr 38px;
+    grid-template-areas: "amt unit del" "name name name";
+    gap: 6px; padding: 8px; border-radius: var(--radius-sm); background: var(--mint-50); border: 1px solid var(--mint-100);
+  }
+  .ing-row .i-amount { grid-area: amt; }
+  .ing-row .i-unit { grid-area: unit; }
+  .ing-row .i-name { grid-area: name; }
+  .ing-row .row-del { grid-area: del; }
+  .rows { gap: 10px; }
+  .text-row { grid-template-columns: 26px minmax(0, 1fr) 34px; gap: 6px; }
+  .text-row .num { width: 26px; height: 26px; font-size: 12px; }
+  .row-del { width: 34px; height: 34px; }
+  /* iOS zoomt bei Schrift < 16px automatisch hinein */
+  input, select, textarea, .search input { font-size: 16px; }
+  .editor .section { margin: 10px 10px; padding: 14px; }
+  /* Vollbild-Dialog, der die Safari-Leisten berücksichtigt */
+  .modal { width: 100%; max-width: 100%; height: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; margin: 0; }
+  .modal-inner { height: 100%; max-height: 100%; }
+  .modal-top { padding-top: calc(16px + env(safe-area-inset-top, 0px)); }
+  .modal-actions { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .modal-actions .btn { flex: 1; }
+  .hero-actions { top: calc(14px + env(safe-area-inset-top, 0px)); }
 }
