@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=13" />
+  <link rel="stylesheet" href="css/styles.css?v=14" />
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -111,12 +111,39 @@
         <span>Die Einkaufsliste ist in eurer Datenbank noch nicht eingerichtet. Bitte das Einkaufslisten-SQL in Supabase ausführen.</span>
       </div>
 
-      <form class="shop-add" id="shop-form" autocomplete="off">
-        <input type="text" id="shop-input" placeholder="z. B. Gurke, 2 l Milch" enterkeyhint="done" aria-label="Neuer Eintrag" />
-        <select id="shop-cat" aria-label="Kategorie (wird automatisch erkannt)"></select>
-        <button type="submit" class="btn btn-primary shop-add-btn" aria-label="Hinzufügen">＋</button>
-      </form>
-      <p class="shop-hint muted">Was brauchen wir? Die Kategorie wird automatisch erkannt · mehrere Dinge mit Komma trennen</p>
+      <div class="shop-adder">
+        <form class="shop-add" id="shop-form" autocomplete="off">
+          <span class="shop-add-icon" aria-hidden="true">🔎</span>
+          <input type="text" id="shop-input" placeholder="Zutat suchen, z. B. Gurke" enterkeyhint="next" aria-label="Zutat suchen oder eingeben" aria-controls="shop-suggest" />
+          <button type="submit" class="btn btn-primary shop-add-btn" aria-label="Weiter zur Menge">＋</button>
+        </form>
+        <ul class="shop-suggest" id="shop-suggest" role="listbox" hidden></ul>
+
+        <!-- Menge einstellen -->
+        <div class="qty-panel" id="qty-panel" hidden>
+          <div class="qty-head">
+            <span class="qty-emoji" id="qty-emoji">🛒</span>
+            <div class="qty-title">
+              <strong id="qty-name"></strong>
+              <select id="qty-cat" aria-label="Kategorie"></select>
+            </div>
+            <button type="button" class="icon-btn" id="qty-close" aria-label="Abbrechen">✕</button>
+          </div>
+          <div class="qty-row">
+            <div class="stepper qty-stepper">
+              <button type="button" id="qty-minus" aria-label="Weniger">−</button>
+              <input type="text" inputmode="decimal" id="qty-amount" aria-label="Menge" />
+              <button type="button" id="qty-plus" aria-label="Mehr">+</button>
+            </div>
+            <select id="qty-unit" aria-label="Einheit"></select>
+          </div>
+          <div class="qty-actions">
+            <button type="button" class="btn btn-ghost" id="qty-nomount">Ohne Menge</button>
+            <button type="button" class="btn btn-primary" id="qty-add">Auf die Liste</button>
+          </div>
+        </div>
+      </div>
+      <p class="shop-hint muted">Kategorie &amp; Einheit werden automatisch erkannt · schnell: „2 l Milch, Gurke“ · <button type="button" class="link-btn" id="btn-custom">⭐ Eigene Zutaten</button></p>
 
       <div id="shop-sections"></div>
 
@@ -180,6 +207,39 @@
   <!-- ============ IDEE-DETAIL ============ -->
   <dialog class="modal" id="idea-modal">
     <div class="modal-inner" id="idea-content"></div>
+  </dialog>
+
+  <!-- ============ EIGENE ZUTATEN ============ -->
+  <dialog class="modal modal-sm" id="custom-modal">
+    <div class="modal-inner">
+      <div class="modal-top">
+        <h2>⭐ Eigene Zutaten</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Schließen">✕</button>
+      </div>
+      <div class="custom-body">
+        <form class="card custom-form" id="custom-form" autocomplete="off">
+          <h3 id="custom-form-title">Neue Zutat</h3>
+          <div class="custom-top">
+            <label class="custom-emoji-preview" title="Emoji">
+              <input type="text" id="c-emoji" maxlength="8" aria-label="Emoji (eigenes eintippen oder unten wählen)" />
+            </label>
+            <label class="field" style="flex:1"><span>Name</span><input type="text" id="c-name" placeholder="z. B. Hafermilch Barista" required /></label>
+          </div>
+          <div class="emoji-grid" id="c-emoji-grid" aria-label="Emoji auswählen"></div>
+          <div class="field-row custom-row">
+            <label class="field"><span>Kategorie</span><select id="c-cat"></select></label>
+            <label class="field"><span>Standardmenge</span><input type="text" inputmode="decimal" id="c-amount" placeholder="1" /></label>
+            <label class="field"><span>Einheit</span><select id="c-unit"></select></label>
+          </div>
+          <div class="custom-actions">
+            <button type="button" class="btn btn-ghost" id="c-cancel" hidden>Abbrechen</button>
+            <button type="submit" class="btn btn-primary" id="c-save">Zutat speichern</button>
+          </div>
+        </form>
+        <h3 class="custom-list-title">Eure Zutaten</h3>
+        <ul class="custom-list" id="custom-list"></ul>
+      </div>
+    </div>
   </dialog>
 
   <!-- ============ REZEPT-EDITOR ============ -->
@@ -273,13 +333,13 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="js/config.js?v=13"></script>
-  <script src="js/db.js?v=13"></script>
-  <script src="js/store.js?v=13"></script>
-  <script src="js/app.js?v=13"></script>
-  <script src="js/groceries.js?v=13"></script>
-  <script src="js/shopping.js?v=13"></script>
-  <script src="js/translate.js?v=13"></script>
-  <script src="js/inspiration.js?v=13"></script>
+  <script src="js/config.js?v=14"></script>
+  <script src="js/db.js?v=14"></script>
+  <script src="js/store.js?v=14"></script>
+  <script src="js/app.js?v=14"></script>
+  <script src="js/groceries.js?v=14"></script>
+  <script src="js/shopping.js?v=14"></script>
+  <script src="js/translate.js?v=14"></script>
+  <script src="js/inspiration.js?v=14"></script>
 </body>
 </html>

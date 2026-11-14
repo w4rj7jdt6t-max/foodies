@@ -89,3 +89,120 @@ function categorize(name, unit = "") {
   if (/^dose|^dosen/i.test(unit) && (!hit || hit.cat === "obst")) return { cat: "allgemein", emoji: "🥫" };
   return hit ? { cat: hit.cat, emoji: hit.emoji } : { cat: "allgemein", emoji: "🛒" };
 }
+
+/* ================= Eigene Zutaten ================= */
+let CUSTOM_GROCERIES = []; // { id, kind: "custom", name, emoji, cat, unit, amount }
+function setCustomGroceries(list) { CUSTOM_GROCERIES = list; }
+function findCustom(name) {
+  const n = String(name || "").toLowerCase().trim();
+  if (!n) return null;
+  return CUSTOM_GROCERIES.find((c) => c.name.toLowerCase() === n)
+    || [...CUSTOM_GROCERIES].sort((a, b) => b.name.length - a.name.length).find((c) => c.name.length >= 3 && n.includes(c.name.toLowerCase()))
+    || null;
+}
+// eigene Zutaten haben Vorrang vor dem Wörterbuch
+const _categorizeBase = categorize;
+categorize = function (name, unit = "") {
+  const c = findCustom(name);
+  return c ? { cat: c.cat, emoji: c.emoji } : _categorizeBase(name, unit);
+};
+
+/* ================= Passende Einheit & Startmenge ================= */
+const SHOP_UNITS = ["Stk.", "g", "kg", "ml", "l", "Packung", "Dose", "Flasche", "Bund", "Becher", "Glas", "Tube", "Netz", "Schale", "Beutel", "Rolle", "Kiste", "Würfel"];
+
+// [Begriffe, Einheit, Startmenge] – längere Begriffe zuerst geprüft
+const QTY_RULES = [
+  ["gurke|paprika|zwiebel|rote zwiebel|zitrone|limette|apfel|banane|birne|orange|mango|ananas|melone|wassermelone|kiwi|avocado|aubergine|zucchini|kürbis|hokkaido|butternut|brokkoli|blumenkohl|romanesco|kopfsalat|eisbergsalat|römersalat|salat|kohlrabi|fenchel|chili|peperoni|mais|maiskolben|granatapfel|knoblauch|ingwer|sellerie|staudensellerie|lauch|porree|mandarine|grapefruit|pfirsich|nektarine|baguette|ciabatta|fladenbrot|brot|croissant|brezel", "Stk.", 1],
+  ["brötchen|semmeln|laugenbrezel", "Stk.", 4],
+  ["ei|eier", "Stk.", 10],
+  ["frühlingszwiebel|lauchzwiebel|petersilie|basilikum|koriander|schnittlauch|minze|dill|rosmarin|thymian|salbei|kräuter|radieschen|karotten|möhren", "Bund", 1],
+  ["kartoffeln|kartoffel|drillinge|süßkartoffeln|zwiebeln|äpfel|mandarinen|clementinen", "kg", 1],
+  ["tomaten|tomate|rispentomate", "g", 500],
+  ["kirschtomaten|cherrytomaten|cocktailtomaten|erdbeeren|heidelbeeren|blaubeeren|himbeeren|beeren|brombeeren|trauben|weintrauben|champignons|pilze|pfifferlinge|kräuterseitlinge", "Schale", 1],
+  ["spinat|blattspinat|rucola|feldsalat|grünkohl|mangold|zuckerschoten|grüne bohnen|edamame|erbsen|rosenkohl|spargel|karotte|möhre|rote bete|pastinaken", "g", 250],
+  ["nudeln|pasta|spaghetti|penne|fusilli|tagliatelle|farfalle|linguine|rigatoni|maccaroni|makkaroni|bandnudeln|lasagneplatten|reisnudeln|glasnudeln|spätzle|gnocchi|tortellini|frische pasta", "g", 500],
+  ["reis|basmatireis|jasminreis|risottoreis|milchreis|couscous|bulgur|quinoa|polenta|linsen|rote linsen|haferflocken|müsli|grieß", "g", 500],
+  ["mehl|weizenmehl|dinkelmehl|zucker|puderzucker|brauner zucker|rohrzucker", "kg", 1],
+  ["hackfleisch|hack|rinderhack|gemischtes hack|rindfleisch|gulasch|schweinefleisch|lammfleisch", "g", 500],
+  ["hähnchen|hähnchenbrust|hähnchenbrustfilet|hähnchenschenkel|hühnchen|putenbrust|lachs|lachsfilet|fisch|kabeljau|seelachs|garnelen|shrimps|steak|schnitzel|filet|tofu|räuchertofu|tempeh", "g", 400],
+  ["speck|bacon|pancetta|schinken|kochschinken|salami|aufschnitt|chorizo|serrano|prosciutto", "g", 150],
+  ["käse|gouda|emmentaler|cheddar|bergkäse|reibekäse|parmesan|grana padano|pecorino|ziegenkäse", "g", 200],
+  ["mozzarella|feta|hirtenkäse|halloumi|burrata|camembert|brie|frischkäse|ricotta|mascarpone|hüttenkäse|gorgonzola", "Packung", 1],
+  ["butter|margarine", "g", 250],
+  ["milch|vollmilch|frischmilch|hafermilch|mandelmilch|sojamilch|buttermilch", "l", 1],
+  ["sahne|schlagsahne|kochsahne|schmand|crème fraîche|creme fraiche|saure sahne|sauerrahm|joghurt|naturjoghurt|griechischer joghurt|skyr|quark|magerquark|pudding", "Becher", 1],
+  ["gehackte tomaten|passierte tomaten|dosentomaten|stückige tomaten|pizzatomaten|kokosmilch|kidneybohnen|weiße bohnen|schwarze bohnen|kichererbsen|bohnen|dosenmais|thunfisch|thunfischdose|sardinen", "Dose", 1],
+  ["tomatenmark|senf|mayo|mayonnaise", "Tube", 1],
+  ["öl|olivenöl|rapsöl|sonnenblumenöl|sesamöl|essig|balsamico|sojasauce|sojasoße|ketchup|grillsauce|fischsauce", "Flasche", 1],
+  ["honig|marmelade|konfitüre|erdnussbutter|nutella|nougatcreme|pesto|oliven|kapern|gewürzgurken|essiggurken|getrocknete tomaten|currypaste|brühe|gemüsebrühe|hühnerbrühe", "Glas", 1],
+  ["hefe|frische hefe|hefewürfel", "Würfel", 1],
+  ["wasser|mineralwasser|sprudel|stilles wasser|bier|radler", "Kiste", 1],
+  ["saft|orangensaft|apfelsaft|wein|weißwein|rotwein|rosé|sekt|prosecco|cola|limo|eistee|tonic|gin|rum|wodka|aperol", "Flasche", 1],
+  ["kaffee|kaffeebohnen|espresso", "g", 500],
+  ["schokolade|zartbitterschokolade", "Stk.", 1],
+  ["nüsse|walnüsse|haselnüsse|mandeln|cashews|cashewkerne|erdnüsse|pinienkerne|pistazien|sonnenblumenkerne|kürbiskerne|rosinen", "g", 200],
+  ["klopapier|toilettenpapier|küchenrolle", "Packung", 1],
+  ["alufolie|backpapier|frischhaltefolie", "Rolle", 1],
+  ["müllbeutel|müllsäcke|gefrierbeutel", "Rolle", 1],
+  ["spülmittel|waschmittel|weichspüler|duschgel|shampoo|handseife|allzweckreiniger|glasreiniger", "Flasche", 1],
+  ["zahnpasta", "Tube", 1],
+].map(([keys, unit, amount]) => ({ keys: keys.split("|"), unit, amount }));
+const QTY_INDEX = QTY_RULES.flatMap((r) => r.keys.map((k) => ({ k, unit: r.unit, amount: r.amount }))).sort((a, b) => b.k.length - a.k.length);
+const CAT_DEFAULT_QTY = { obst: ["Stk.", 1], kuehl: ["Packung", 1], tiefkuehl: ["Packung", 1], allgemein: ["Packung", 1], haushalt: ["Packung", 1], getraenke: ["Flasche", 1] };
+
+/** Zutat → { unit, amount } als sinnvoller Startwert */
+function suggestQty(name) {
+  const c = findCustom(name);
+  if (c && c.unit) return { unit: c.unit, amount: c.amount ?? 1 };
+  const n = " " + String(name || "").toLowerCase().trim() + " ";
+  const exact = QTY_INDEX.find((e) => n.trim() === e.k);
+  const hit = exact || QTY_INDEX.find((e) => e.k.length >= 4 && n.includes(e.k));
+  if (hit) return { unit: hit.unit, amount: hit.amount };
+  const [unit, amount] = CAT_DEFAULT_QTY[categorize(name).cat] || ["Stk.", 1];
+  return { unit, amount };
+}
+
+/** sinnvolle Schrittweite für −/+ */
+function qtyStep(unit, amount) {
+  if (unit === "g" || unit === "ml") return amount >= 1000 ? 250 : amount > 250 ? 100 : 50;
+  if (unit === "kg" || unit === "l") return 0.5;
+  return 1;
+}
+
+/* ================= Vorschläge beim Tippen ================= */
+const SUGGEST_SKIP = new Set(["jogurt", "sojasoße", "creme fraiche", "rose", "huhn", "tk", "tiefkühl", "tiefgekühlt", "gefroren", "ei", "hack", "eis", "tee", "öl", "rind", "huhn", "schwein", "filet", "braten", "creme", "rose", "energy", "fond"]);
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const SUGGEST_BASE = (() => {
+  const seen = new Set(), out = [];
+  for (const [cat, words] of Object.entries(GROCERY_WORDS)) {
+    for (const [keys, emoji] of Object.entries(words)) {
+      for (const k of keys.split("|")) {
+        if (SUGGEST_SKIP.has(k) || k.length < 3 || seen.has(k)) continue;
+        // Mehrzahl ausblenden, wenn die Einzahl schon vorkommt („Gurken“ neben „Gurke“)
+        if ([k.replace(/en$/, ""), k.replace(/n$/, ""), k.replace(/s$/, ""), k.replace(/e$/, "")].some((x) => x !== k && seen.has(x))) { seen.add(k); continue; }
+        seen.add(k);
+        out.push({ name: cap(k), cat, emoji });
+      }
+    }
+  }
+  out.push({ name: "Eier", cat: "kuehl", emoji: "🥚" }, { name: "Eis", cat: "tiefkuehl", emoji: "🍨" }, { name: "Tee", cat: "getraenke", emoji: "🍵" });
+  return out;
+})();
+
+/** passende Vorschläge (eigene Zutaten zuerst) */
+function suggestGroceries(query, limit = 6) {
+  const q = String(query || "").toLowerCase().trim();
+  if (!q) return [];
+  const custom = CUSTOM_GROCERIES.map((c) => ({ name: c.name, cat: c.cat, emoji: c.emoji, custom: true }));
+  const all = [...custom, ...SUGGEST_BASE.filter((b) => !custom.some((c) => c.name.toLowerCase() === b.name.toLowerCase()))];
+  const starts = all.filter((s) => s.name.toLowerCase().startsWith(q));
+  const contains = all.filter((s) => !s.name.toLowerCase().startsWith(q) && s.name.toLowerCase().includes(q));
+  const rank = (a, b) => (b.custom ? 1 : 0) - (a.custom ? 1 : 0) || a.name.length - b.name.length;
+  return [...starts.sort(rank), ...contains.sort(rank)].slice(0, limit);
+}
+const isKnownGrocery = (name) => {
+  const n = String(name || "").toLowerCase().trim();
+  return CUSTOM_GROCERIES.some((c) => c.name.toLowerCase() === n) || SUGGEST_BASE.some((s) => s.name.toLowerCase() === n);
+};
+
+const EMOJI_CHOICES = ["🥒","🍅","🧅","🧄","🥔","🥕","🫑","🌶️","🥦","🥬","🍄","🌽","🍆","🥑","🍋","🍎","🍏","🍌","🍐","🍊","🍓","🫐","🍇","🥝","🥭","🍍","🍒","🍑","🍉","🥥","🫚","🎃","🫛","🌿","🥛","🧈","🧀","🥚","🍗","🥩","🥓","🍖","🌭","🐟","🦐","🍤","🍝","🍚","🌾","🍞","🥖","🥐","🥯","🫓","🌮","🍕","🍔","🍟","🥫","🫘","🥜","🌰","🍯","🧂","🫒","🍶","🥣","🍫","🍪","🍰","🧁","🍬","🍿","🥨","🍨","🧊","💧","🧃","🥤","🍺","🍷","🥂","☕","🍵","🧋","🧻","🧽","🧴","🧼","🪥","🧺","🗑️","🔋","🕯️","🐾","💐","🛒"];

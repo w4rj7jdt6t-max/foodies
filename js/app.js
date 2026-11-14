@@ -125,7 +125,7 @@ const FRACTIONS = [[0.25, "¼"], [1 / 3, "⅓"], [0.5, "½"], [2 / 3, "⅔"], [0
 /** Zahl → schön lesbare Menge (deutsch) */
 function formatAmount(v, unit = "") {
   if (v == null) return "";
-  const metric = /^(g|ml)$/i.test(unit);
+  const metric = /^(g|kg|ml|l)$/i.test(unit);
   if (metric && v >= 100) return String(Math.round(v / 5) * 5);
   if (v >= 10) return String(Math.round(v));
   const whole = Math.floor(v), rest = v - whole;
