@@ -275,6 +275,7 @@ function renderList() {
       <span class="bar-chevron" aria-hidden="true">›</span>
     </button></li>`;
   }).join("") : `<li class="muted" style="text-align:center;padding:24px">Nichts gefunden 🤔</li>`;
+  if (typeof Plan !== "undefined") Plan.render(); // Titel/Bilder im Kalender aktuell halten
 }
 
 $("#recipe-list").addEventListener("click", (e) => {
@@ -315,6 +316,7 @@ function renderDetail() {
         <span class="meta-chip">🧂 ${r.ingredients.length} Zutaten</span>
         <span class="meta-chip">👩‍🍳 ${r.steps.length} Schritte</span>
       </div>
+      <button type="button" class="btn btn-soft plan-btn" data-action="plan">🗓️ In den Kalender</button>
 
       <div class="detail-grid">
         <section class="card">
@@ -348,7 +350,7 @@ function ingredientsHTML(r) {
   return r.ingredients.map((i) => {
     const amt = i.amount == null ? "" : formatAmount(i.amount * factor, i.unit);
     const idx = r.ingredients.indexOf(i);
-    const on = !!(window.Shop && Shop.onList(r.id, idx));
+    const on = typeof Shop !== "undefined" && !!Shop.onList(r.id, idx);
     return `<li><span class="ing-amt">${esc([amt, i.unit].filter(Boolean).join(" "))}</span><span class="ing-name">${esc(i.name)}</span>
       <button type="button" class="ing-cart ${on ? "is-on" : ""}" data-idx="${idx}" aria-pressed="${on}" aria-label="${esc(i.name)} auf die Einkaufsliste" title="Auf die Einkaufsliste">🛒</button></li>`;
   }).join("");
@@ -389,6 +391,7 @@ $("#detail-content").addEventListener("click", async (e) => {
     return toast("Rezept gelöscht 🗑️");
   }
   if (act === "add-all") return Shop.addAll(state.current, state.servings / state.current.servings);
+  if (act === "plan") return Plan.openDayPicker(state.current);
   const cart = e.target.closest(".ing-cart");
   if (cart) {
     const on = await Shop.toggleIngredient(state.current, +cart.dataset.idx, state.servings / state.current.servings);
@@ -744,6 +747,7 @@ async function startCloud() {
     document.addEventListener("visibilitychange", () => { if (!document.hidden) loadRecipes().catch(() => {}); });
   }
   Shop.load();
+  Plan.load();
   offerMigration();
 }
 
@@ -775,4 +779,5 @@ document.addEventListener("DOMContentLoaded", async function init() {
   }
   renderList();
   Shop.load();
+  Plan.load();
 });

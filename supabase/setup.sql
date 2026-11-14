@@ -58,3 +58,23 @@ create policy "foodies einkauf löschen" on public.shopping_items for delete to 
 do $$ begin
   alter publication supabase_realtime add table public.shopping_items;
 exception when duplicate_object then null; end $$;
+
+-- ================= Kalender (geplante Mahlzeiten) =================
+create table if not exists public.meal_plan (
+  id          text primary key,
+  data        jsonb not null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+alter table public.meal_plan enable row level security;
+drop policy if exists "foodies plan lesen"   on public.meal_plan;
+drop policy if exists "foodies plan anlegen" on public.meal_plan;
+drop policy if exists "foodies plan ändern"  on public.meal_plan;
+drop policy if exists "foodies plan löschen" on public.meal_plan;
+create policy "foodies plan lesen"   on public.meal_plan for select to authenticated using (true);
+create policy "foodies plan anlegen" on public.meal_plan for insert to authenticated with check (true);
+create policy "foodies plan ändern"  on public.meal_plan for update to authenticated using (true) with check (true);
+create policy "foodies plan löschen" on public.meal_plan for delete to authenticated using (true);
+do $$ begin
+  alter publication supabase_realtime add table public.meal_plan;
+exception when duplicate_object then null; end $$;

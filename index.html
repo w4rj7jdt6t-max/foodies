@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=18" />
+  <link rel="stylesheet" href="css/styles.css?v=19" />
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -96,7 +96,19 @@
     </section>
 
     <!-- ============ PLATZHALTER ============ -->
-    <section class="panel" id="panel-kalender" role="tabpanel"><div class="soon"><div class="soon-emoji">🗓️</div><h2>Kalender</h2><p class="muted">Hier planen wir bald unsere Woche. Kommt als Nächstes!</p></div></section>
+    <!-- ============ KALENDER ============ -->
+    <section class="panel" id="panel-kalender" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <h2>Unsere Woche</h2>
+          <p class="muted" id="plan-count">–</p>
+        </div>
+      </div>
+      <div class="banner" id="plan-setup" hidden>
+        <span>Der Kalender ist in eurer Datenbank noch nicht eingerichtet. Bitte das Kalender-SQL in Supabase ausführen.</span>
+      </div>
+      <div class="week" id="week"></div>
+    </section>
     <section class="panel" id="panel-reste" role="tabpanel"><div class="soon"><div class="soon-emoji">🥡</div><h2>Reste</h2><p class="muted">Was ist noch im Kühlschrank? Kommt bald.</p></div></section>
     <!-- ============ EINKAUFSLISTE ============ -->
     <section class="panel" id="panel-einkauf" role="tabpanel">
@@ -207,6 +219,42 @@
   <!-- ============ IDEE-DETAIL ============ -->
   <dialog class="modal" id="idea-modal">
     <div class="modal-inner" id="idea-content"></div>
+  </dialog>
+
+  <!-- ============ KALENDER: REZEPT WÄHLEN ============ -->
+  <dialog class="modal modal-sm" id="plan-pick-modal">
+    <div class="modal-inner">
+      <div class="modal-top">
+        <h2 id="plan-pick-title">Rezept wählen</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Schließen">✕</button>
+      </div>
+      <div class="pick-body">
+        <label class="search">
+          <span aria-hidden="true">🔎</span>
+          <input type="search" id="plan-pick-search" placeholder="Rezept suchen …" autocomplete="off" />
+        </label>
+        <ul class="pick-list" id="plan-pick-list"></ul>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ============ KALENDER: TAG WÄHLEN ============ -->
+  <dialog class="modal modal-sm" id="plan-day-modal">
+    <div class="modal-inner">
+      <div class="modal-top">
+        <h2>🗓️ Wann gibt's das?</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Schließen">✕</button>
+      </div>
+      <div class="pick-body">
+        <p class="muted pick-sub" id="plan-day-sub"></p>
+        <ul class="day-pick" id="plan-day-list"></ul>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ============ KALENDER: GEPLANTE MAHLZEIT ============ -->
+  <dialog class="modal modal-sm" id="plan-meal-modal">
+    <div class="modal-inner" id="plan-meal-content"></div>
   </dialog>
 
   <!-- ============ EIGENE ZUTATEN ============ -->
@@ -333,13 +381,14 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="js/config.js?v=18"></script>
-  <script src="js/db.js?v=18"></script>
-  <script src="js/store.js?v=18"></script>
-  <script src="js/app.js?v=18"></script>
-  <script src="js/groceries.js?v=18"></script>
-  <script src="js/shopping.js?v=18"></script>
-  <script src="js/translate.js?v=18"></script>
-  <script src="js/inspiration.js?v=18"></script>
+  <script src="js/config.js?v=19"></script>
+  <script src="js/db.js?v=19"></script>
+  <script src="js/store.js?v=19"></script>
+  <script src="js/app.js?v=19"></script>
+  <script src="js/groceries.js?v=19"></script>
+  <script src="js/shopping.js?v=19"></script>
+  <script src="js/calendar.js?v=19"></script>
+  <script src="js/translate.js?v=19"></script>
+  <script src="js/inspiration.js?v=19"></script>
 </body>
 </html>

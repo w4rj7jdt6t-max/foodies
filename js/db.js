@@ -1,6 +1,6 @@
 /* Kleine IndexedDB-Hülle – lokaler Speicher, falls keine gemeinsame Sammlung eingerichtet ist. */
 const DB = (() => {
-  const NAME = "foodies", VERSION = 2, STORES = ["recipes", "shopping"];
+  const NAME = "foodies", VERSION = 3, STORES = ["recipes", "shopping", "plan"];
   let dbPromise;
 
   function open() {
