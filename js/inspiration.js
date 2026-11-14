@@ -13,7 +13,7 @@ document.querySelectorAll(".insp-type").forEach((b) => b.addEventListener("click
   insp.type = b.dataset.type;
   insp.tags.clear();
   document.querySelectorAll(".insp-type").forEach((x) => { x.classList.toggle("is-active", x === b); x.setAttribute("aria-selected", x === b); });
-  $("#insp-search").placeholder = insp.type === "backen" ? "Worauf habt ihr Lust? z. B. Apfelkuchen, Brownies …" : "Worauf habt ihr Lust? z. B. Lasagne, Auflauf …";
+  $("#insp-search").placeholder = insp.type === "backen" ? "z. B. Apfelkuchen, Brownies …" : "z. B. Lasagne, Auflauf …";
   renderInspFilter();
   if (insp.started || insp.provider === "mealdb") runSearch({ random: !$("#insp-search").value.trim() });
 }));
