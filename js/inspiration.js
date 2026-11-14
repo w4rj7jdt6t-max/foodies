@@ -4,16 +4,27 @@
  *  - Sonst (lokal / gehostet): freie Rezept-Datenbank TheMealDB (englisch).
  * Immer dabei: Links zum Weitersuchen bei Chefkoch und Google.
  */
-const insp = { tags: new Set(), ideas: [], provider: null, sample: null, loading: false, ctl: null, started: false, lastQuery: "" };
+const insp = { type: "kochen", tags: new Set(), ideas: [], provider: null, sample: null, loading: false, ctl: null, started: false, lastQuery: "" };
 
 /* ---------- Filter-UI (gleiche Merkmale wie bei Rezepte) ---------- */
+const inspTagList = () => (insp.type === "backen" ? BAKE_TAGS : [...TAGS, ...INSP_EXTRA_TAGS]);
+document.querySelectorAll(".insp-type").forEach((b) => b.addEventListener("click", () => {
+  if (insp.type === b.dataset.type) return;
+  insp.type = b.dataset.type;
+  insp.tags.clear();
+  document.querySelectorAll(".insp-type").forEach((x) => { x.classList.toggle("is-active", x === b); x.setAttribute("aria-selected", x === b); });
+  $("#insp-search").placeholder = insp.type === "backen" ? "Worauf habt ihr Lust? z. B. Apfelkuchen, Brownies …" : "Worauf habt ihr Lust? z. B. Lasagne, Auflauf …";
+  renderInspFilter();
+  if (insp.started || insp.provider === "mealdb") runSearch({ random: !$("#insp-search").value.trim() });
+}));
+
 function renderInspFilter() {
   const n = insp.tags.size, btn = $("#insp-filter-btn");
   btn.classList.toggle("has-active", n > 0);
   btn.setAttribute("aria-expanded", String(!$("#insp-filter-panel").hidden));
   $("#insp-filter-badge").hidden = !n;
   $("#insp-filter-badge").textContent = n;
-  $("#insp-filter-tags").innerHTML = tagButtons(insp.tags, [...TAGS, ...INSP_EXTRA_TAGS]);
+  $("#insp-filter-tags").innerHTML = tagButtons(insp.tags, inspTagList());
 }
 $("#insp-filter-btn").addEventListener("click", () => { $("#insp-filter-panel").hidden = !$("#insp-filter-panel").hidden; renderInspFilter(); });
 $("#insp-filter-tags").addEventListener("click", (e) => {
@@ -74,8 +85,8 @@ async function runSearch({ random = false } = {}) {
   setStatus(insp.provider === "claude" ? "Claude sucht passende Ideen … das dauert einen Moment" : "Suche Rezeptideen …", { spinner: true });
   try {
     const ideas = insp.provider === "claude"
-      ? await claudeIdeas(q, [...insp.tags], random, ctl.signal)
-      : await mealdbIdeas(q, [...insp.tags], random);
+      ? await claudeIdeas(q, [...insp.tags], random, ctl.signal, insp.type)
+      : insp.type === "backen" ? await bakeIdeas(q, [...insp.tags], random) : await mealdbIdeas(q, [...insp.tags], random);
     if (ctl !== insp.ctl) return; // inzwischen neue Suche gestartet
     if (insp.provider === "mealdb" && ideas.length) {
       setStatus("Übersetze ins Deutsche …", { spinner: true });
@@ -169,7 +180,7 @@ $("#idea-content").addEventListener("click", (e) => {
     const i = currentIdea;
     closeModal($("#idea-modal"));
     openEditor({
-      title: i.title, type: "kochen", category: i.category, tags: i.tags,
+      title: i.title, type: i.type || "kochen", category: i.category, tags: i.tags,
       servings: i.servings || 4, time: i.time || null, image: i.image || null,
       ingredients: i.ingredients, steps: i.steps,
       tips: i.tips,
@@ -183,20 +194,24 @@ $("#idea-content").addEventListener("click", (e) => {
 const CAT_IDS = CATEGORIES.map((c) => c.id);
 const TAG_IDS = [...TAGS, ...INSP_EXTRA_TAGS].map((t) => t.id);
 
-async function claudeIdeas(q, tags, random, signal) {
+async function claudeIdeas(q, tags, random, signal, type = "kochen") {
   const month = new Date().toLocaleDateString("de-DE", { month: "long" });
   const tagText = tags.length ? tags.map((t) => tagById(t).label).join(", ") : "keine";
-  const prompt = `Du bist eine kreative Kochberaterin für ein Paar, das gern zu Hause kocht. Schlage 6 abwechslungsreiche, alltagstaugliche Rezeptideen auf Deutsch vor.
+  const bake = type === "backen";
+  const tagMeaning = bake
+    ? "kuchen=Kuchen oder Tarte, kekse=Kekse oder Plätzchen, muffins=Muffins oder Cupcakes, brot=Brot, broetchen=Brötchen."
+    : "fruehstueck=Frühstücksgericht, hauptgericht=sättigendes Hauptgericht (Mittag-/Abendessen), haehnchen=enthält Hähnchen, hack=enthält Hackfleisch, vegetarisch=ohne Fleisch und Fisch, pasta=Nudelgericht, reis=mit Reis, kartoffeln=mit Kartoffeln, warm=wird warm gegessen, kalt=wird kalt gegessen, suppe=Suppe oder Eintopf, salat=Salat.";
+  const prompt = `Du bist eine kreative ${bake ? "Backberaterin" : "Kochberaterin"} für ein Paar, das gern zu Hause ${bake ? "backt" : "kocht"}. Schlage 6 abwechslungsreiche, gut gelingende ${bake ? "BACKREZEPTE (Kuchen, Gebäck, Brot …)" : "Rezeptideen"} auf Deutsch vor.
 
 Wunsch / Suchbegriff: ${q && !random ? `"${q}"` : `keiner – überrasche mit saisonalen Ideen für ${month}`}
 Pflicht-Merkmale (JEDES Rezept muss ALLE erfüllen): ${tagText}
 
-Merkmal-IDs und Bedeutung: fruehstueck=Frühstücksgericht, hauptgericht=sättigendes Hauptgericht (Mittag-/Abendessen), haehnchen=enthält Hähnchen, hack=enthält Hackfleisch, vegetarisch=ohne Fleisch und Fisch, pasta=Nudelgericht, reis=mit Reis, kartoffeln=mit Kartoffeln, warm=wird warm gegessen, kalt=wird kalt gegessen, suppe=Suppe oder Eintopf, salat=Salat.
-Kategorie-IDs: ${CAT_IDS.join(", ")}.
+Merkmal-IDs und Bedeutung: ${tagMeaning}
+Kategorie-IDs: ${bake ? "backen, dessert" : CAT_IDS.join(", ")}.
 
 Antworte NUR mit einem JSON-Array aus 6 Objekten in genau dieser Form:
 {"title": string, "emoji": ein passendes Essens-Emoji, "summary": ein appetitlicher Satz, "time": Minuten als Zahl, "servings": 2, "category": Kategorie-ID, "tags": [alle zutreffenden Merkmal-IDs], "ingredients": [{"amount": Zahl oder null, "unit": "g"|"ml"|"EL"|"TL"|"Stk."|"Zehe"|"Dose"|"Prise"|"Bund"|"", "name": string}], "steps": [3 bis 6 kurze Schritte], "tips": [1 bis 2 Tipps]}
-Mengen für 2 Portionen, metrische Einheiten.`;
+${bake ? "Mengen für ein normales Backrezept (z. B. eine Form oder 12 Stück), servings = Anzahl Stücke." : "Mengen für 2 Portionen"}, metrische Einheiten.`;
   const data = await insp.sample.json(prompt, { signal, modelTier: "default", cache: random ? false : undefined });
   const arr = Array.isArray(data) ? data : Array.isArray(data?.ideas) ? data.ideas : [];
   return arr.slice(0, 8).map((d) => ({
@@ -205,8 +220,9 @@ Mengen für 2 Portionen, metrische Einheiten.`;
     summary: String(d.summary || "").slice(0, 220),
     time: Number.isFinite(+d.time) && +d.time > 0 ? Math.round(+d.time) : null,
     servings: Number.isFinite(+d.servings) && +d.servings > 0 ? Math.round(+d.servings) : 2,
-    category: CAT_IDS.includes(d.category) ? d.category : "haupt",
-    tags: Array.isArray(d.tags) ? TAG_IDS.filter((id) => d.tags.includes(id)) : [],
+    category: bake ? (d.category === "dessert" ? "dessert" : "backen") : CAT_IDS.includes(d.category) ? d.category : "haupt",
+    type,
+    tags: Array.isArray(d.tags) ? (bake ? BAKE_TAGS.map((t) => t.id) : TAG_IDS).filter((id) => d.tags.includes(id)) : [],
     ingredients: (Array.isArray(d.ingredients) ? d.ingredients : []).map((i) => ({
       amount: Number.isFinite(+i?.amount) && i?.amount !== null && i?.amount !== "" ? +i.amount : null,
       unit: String(i?.unit || "").slice(0, 12), name: String(i?.name || "").slice(0, 80),
@@ -291,6 +307,50 @@ async function mealdbIdeas(q, tags, random) {
   }));
 }
 
+/* ---------- Backen (TheMealDB) ---------- */
+const BAKE_QUERY = {
+  kuchen: ["cake", "tart", "pie", "brownie", "cheesecake", "crumble"],
+  kekse: ["cookie", "biscuit", "shortbread"],
+  muffins: ["muffin", "cupcake"],
+  brot: ["bread", "focaccia", "loaf", "naan"],
+  broetchen: ["roll", "bun", "bagel", "scone"],
+};
+const BAKE_RE = /cake|tart|\bpie\b|brownie|cookie|biscuit|shortbread|muffin|cupcake|bread|loaf|focaccia|naan|\bbuns?\b|bagel|scone|pastry|croissant|strudel|crumble|cheesecake|roll|flapjack|bakewell|eclair|profiterole|macaron|meringue|pavlova|babka|brioche|pretzel/i;
+const SAVOURY_CATS = new Set(["Beef", "Chicken", "Lamb", "Pork", "Seafood", "Goat", "Pasta"]);
+const NOT_BAKED = /spring roll|egg roll|cabbage roll|sushi|pancake|rice pudding|ice cream|breadfruit|taco/i;
+function bakeTagsFor(name) {
+  const n = String(name || "");
+  const t = [];
+  if (/cake|tart|\bpie\b|brownie|cheesecake|crumble|strudel|bakewell|babka|pavlova/i.test(n)) t.push("kuchen");
+  if (/cookie|biscuit|shortbread|macaron|flapjack/i.test(n)) t.push("kekse");
+  if (/muffin|cupcake/i.test(n)) t.push("muffins");
+  if (/bread|loaf|focaccia|naan|brioche/i.test(n.replace(/gingerbread|shortbread|breadcrumbs?|breadfruit/gi, ""))) t.push("brot");
+  if (/\broll|\bbuns?\b|bagel|scone|pretzel/i.test(n)) t.push("broetchen");
+  return t;
+}
+const isBakeMeal = (m) => !SAVOURY_CATS.has(m.strCategory) && !NOT_BAKED.test(m.strMeal) && (BAKE_RE.test(m.strMeal) || m.strCategory === "Dessert");
+
+async function bakeIdeas(q, tags, random) {
+  const search = (terms) => Promise.all(terms.map((t) => mealdb("search.php?s=" + encodeURIComponent(t)).catch(() => []))).then((l) => l.flat());
+  let pool = null;
+  const intersect = (meals) => {
+    const m = new Map(meals.filter(isBakeMeal).map((x) => [x.idMeal, x]));
+    pool = pool ? new Map([...pool].filter(([id]) => m.has(id))) : m;
+  };
+  // Ergebnis muss auch vom Namen her zum Filter passen (z. B. „bundt“ ≠ Brötchen)
+  for (const t of tags) intersect((await search(BAKE_QUERY[t] || [])).filter((m) => bakeTagsFor(m.strMeal).includes(t)));
+  if (q && !random) {
+    const en = toEnglish(q);
+    let found = (await search([en])).filter(isBakeMeal);
+    if (!found.length) found = (await search([en.split(" ").pop()])).filter(isBakeMeal);
+    intersect(found);
+  }
+  if (!pool) pool = new Map((await search(Object.values(BAKE_QUERY).flat())).filter(isBakeMeal).map((x) => [x.idMeal, x]));
+  let meals = [...pool.values()];
+  if (random || !q) meals.sort(() => Math.random() - 0.5);
+  return meals.slice(0, 12).map((m) => mealToIdea(m, "backen"));
+}
+
 async function mealdbLookup(id) {
   const [m] = await mealdb("lookup.php?i=" + encodeURIComponent(id));
   if (!m) throw new Error("not found");
@@ -306,7 +366,7 @@ function parseMeasure(measure) {
 }
 
 const CAT_MAP = { Pasta: "pasta", Breakfast: "fruehstueck", Dessert: "dessert", Starter: "snack", Side: "snack" };
-function mealToIdea(m) {
+function mealToIdea(m, type = "kochen") {
   const ingredients = [];
   for (let i = 1; i <= 20; i++) {
     const name = (m["strIngredient" + i] || "").trim();
@@ -334,8 +394,9 @@ function mealToIdea(m) {
     meta: { area: m.strArea, cat: m.strCategory },
     summary: [m.strArea, m.strCategory].filter(Boolean).join(" · "),
     time: null, servings: null,
-    category: CAT_MAP[m.strCategory] || (/soup/i.test(m.strMeal) ? "suppe" : /salad/i.test(m.strMeal) ? "salat" : "haupt"),
-    tags: TAG_IDS.filter((t) => tags.includes(t)),
+    type,
+    category: type === "backen" ? "backen" : CAT_MAP[m.strCategory] || (/soup/i.test(m.strMeal) ? "suppe" : /salad/i.test(m.strMeal) ? "salat" : "haupt"),
+    tags: type === "backen" ? bakeTagsFor(m.strMeal) : TAG_IDS.filter((t) => tags.includes(t)),
     ingredients, steps, tips: [],
     source: { label: m.strSource ? "Originalrezept" : "Bei TheMealDB", url },
     origin: "Aus der freien Rezept-Datenbank TheMealDB.",

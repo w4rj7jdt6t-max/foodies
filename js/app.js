@@ -226,7 +226,7 @@ function thumbHTML(r, cls = "thumb") {
 }
 
 /* ---------- Kochen / Backen ---------- */
-document.querySelectorAll(".subtab").forEach((b) => b.addEventListener("click", () => {
+document.querySelectorAll("#panel-rezepte .subtab").forEach((b) => b.addEventListener("click", () => {
   if (state.type !== b.dataset.type) state.tags.clear(); // Merkmale gehören zur jeweiligen Art
   state.type = b.dataset.type;
   state.category = "all";
@@ -256,7 +256,7 @@ $("#filter-tags").addEventListener("click", (e) => {
 $("#filter-reset").addEventListener("click", () => { state.tags.clear(); renderList(); });
 
 function renderList() {
-  document.querySelectorAll(".subtab").forEach((b) => {
+  document.querySelectorAll("#panel-rezepte .subtab").forEach((b) => {
     b.classList.toggle("is-active", b.dataset.type === state.type);
     b.setAttribute("aria-selected", b.dataset.type === state.type);
   });
