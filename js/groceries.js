@@ -162,11 +162,36 @@ function suggestQty(name) {
   return { unit, amount };
 }
 
+/** Einheiten für Rezepte (inkl. Küchenmaße) */
+const RECIPE_UNITS = ["", "g", "kg", "ml", "l", "EL", "TL", "Prise", "Stk.", "Zehe", "Scheibe", "Bund", "Dose", "Becher", "Packung", "Glas", "Tasse", "Handvoll", "Spritzer", "Würfel", "Tube", "Flasche", "Schale", "Zweig", "Blatt"];
+
 /** sinnvolle Schrittweite für −/+ */
 function qtyStep(unit, amount) {
-  if (unit === "g" || unit === "ml") return amount >= 1000 ? 250 : amount > 250 ? 100 : 50;
+  if (unit === "g" || unit === "ml") return amount >= 1000 ? 250 : amount >= 200 ? 50 : amount >= 50 ? 25 : 10;
   if (unit === "kg" || unit === "l") return 0.5;
+  if (unit === "EL" || unit === "TL" || unit === "Tasse") return 0.5;
   return 1;
+}
+
+/** Rezept-Startmenge: wie Einkauf, aber Küchenmaße für Gewürze, Öl & Co. */
+const RECIPE_QTY = [
+  ["salz|pfeffer|zucker|muskat|muskatnuss|zimt", "Prise", 1],
+  ["öl|olivenöl|rapsöl|sonnenblumenöl|sesamöl|essig|balsamico|sojasauce|sojasoße|honig|senf|tomatenmark|fischsauce|ahornsirup|mehl|speisestärke|butter", "EL", 1],
+  ["paprikapulver|kreuzkümmel|kurkuma|curry|currypulver|garam masala|chiliflocken|oregano|backpulver|natron|vanillezucker|gemüsebrühe|brühe", "TL", 1],
+  ["knoblauch|knoblauchzehe", "Zehe", 2],
+  ["milch|sahne|kochsahne|wasser|brühe", "ml", 200],
+  ["nudeln|pasta|spaghetti|penne|fusilli|tagliatelle|farfalle|linguine|rigatoni|bandnudeln|reis|basmatireis|risottoreis|couscous|bulgur|quinoa", "g", 250],
+  ["hackfleisch|rinderhack|hähnchenbrust|hähnchen|lachs|lachsfilet|tofu|garnelen", "g", 300],
+  ["käse|parmesan|reibekäse|feta|mozzarella", "g", 100],
+  ["kartoffeln|kartoffel", "g", 500],
+].map(([keys, unit, amount]) => ({ keys: keys.split("|"), unit, amount }));
+function suggestRecipeQty(name) {
+  const n = String(name || "").toLowerCase().trim();
+  const hit = RECIPE_QTY.find((r) => r.keys.includes(n)) || RECIPE_QTY.find((r) => r.keys.some((k) => k.length >= 4 && n.includes(k)));
+  if (hit) return { unit: hit.unit, amount: hit.amount };
+  const s = suggestQty(name);
+  // Einkaufseinheiten wie Kiste/Netz/Packung passen im Rezept selten → Stück
+  return ["Kiste", "Netz", "Rolle"].includes(s.unit) ? { unit: "Stk.", amount: 1 } : s;
 }
 
 /* ================= Vorschläge beim Tippen ================= */

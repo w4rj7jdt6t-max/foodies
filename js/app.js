@@ -407,13 +407,86 @@ $("#f-category").innerHTML = CATEGORIES.map((c) => `<option value="${c.id}">${c.
 function ingRow(i = {}) {
   const div = document.createElement("div");
   div.className = "ing-row";
+  const unit = i.unit || "";
+  const units = [...new Set([...RECIPE_UNITS, unit])];
   div.innerHTML = `
-    <input type="text" inputmode="decimal" class="i-amount" placeholder="200" value="${esc(amountForInput(i.amount))}" aria-label="Menge" />
-    <input type="text" class="i-unit" list="units" placeholder="g" value="${esc(i.unit || "")}" aria-label="Einheit" />
-    <input type="text" class="i-name" placeholder="z. B. Mehl" value="${esc(i.name || "")}" aria-label="Zutat" />
-    <button type="button" class="row-del" aria-label="Entfernen">✕</button>`;
+    <div class="i-step">
+      <button type="button" class="i-minus" aria-label="Weniger">−</button>
+      <input type="text" inputmode="decimal" class="i-amount" placeholder="–" value="${esc(amountForInput(i.amount))}" aria-label="Menge" />
+      <button type="button" class="i-plus" aria-label="Mehr">+</button>
+    </div>
+    <select class="i-unit" aria-label="Einheit">${units.map((u) => `<option value="${esc(u)}" ${u === unit ? "selected" : ""}>${u ? esc(u) : "–"}</option>`).join("")}</select>
+    <div class="i-name-wrap">
+      <span class="i-emoji" aria-hidden="true">${i.name ? esc(categorize(i.name).emoji) : "🔎"}</span>
+      <input type="text" class="i-name" placeholder="Zutat suchen …" value="${esc(i.name || "")}" aria-label="Zutat" autocomplete="off" />
+    </div>
+    <button type="button" class="row-del" aria-label="Entfernen">✕</button>
+    <ul class="ing-suggest" role="listbox" hidden></ul>`;
   return div;
 }
+
+/* --- Zutaten: Vorschläge, Menge & Einheit --- */
+function ingSuggest(row) {
+  const input = row.querySelector(".i-name"), box = row.querySelector(".ing-suggest");
+  const q = input.value.trim();
+  row.querySelector(".i-emoji").textContent = q ? categorize(q).emoji : "🔎";
+  if (!q || document.activeElement !== input) { box.hidden = true; return; }
+  const list = suggestGroceries(q, 5);
+  row._sugg = list;
+  row._active = Math.min(row._active ?? -1, list.length - 1);
+  const known = isKnownGrocery(q);
+  box.innerHTML = list.map((s, k) => `<li class="sugg ${k === row._active ? "is-active" : ""}" data-k="${k}"><span class="sugg-emoji">${esc(s.emoji)}</span><span class="sugg-name">${esc(s.name)}</span>${s.custom ? `<span class="sugg-star">⭐</span>` : ""}</li>`).join("")
+    + (known ? "" : `<li class="sugg sugg-new" data-new="1"><span class="sugg-emoji">⭐</span><span class="sugg-name">„${esc(q)}“ als eigene Zutat anlegen</span></li>`);
+  box.hidden = !box.innerHTML;
+}
+function pickIngredient(row, name) {
+  row.querySelector(".i-name").value = name;
+  row.querySelector(".i-emoji").textContent = categorize(name).emoji;
+  row.querySelector(".ing-suggest").hidden = true;
+  row._active = -1;
+  const amt = row.querySelector(".i-amount");
+  if (!amt.value.trim()) {
+    const s = suggestRecipeQty(name);
+    setRowUnit(row, s.unit);
+    amt.value = amountForInput(s.amount);
+  }
+}
+function setRowUnit(row, unit) {
+  const sel = row.querySelector(".i-unit");
+  if (![...sel.options].some((o) => o.value === unit)) sel.add(new Option(unit, unit));
+  sel.value = unit;
+}
+function stepRow(row, dir) {
+  const amt = row.querySelector(".i-amount"), unit = row.querySelector(".i-unit").value;
+  const v = parseAmount(amt.value) ?? 0;
+  const step = qtyStep(unit, dir > 0 ? v : Math.max(v - 0.001, 0));
+  const next = Math.round((v + dir * step) / step) * step;
+  amt.value = next > 0 ? amountForInput(next) : "";
+}
+
+const ingBox = $("#ing-rows");
+ingBox.addEventListener("input", (e) => { if (e.target.classList.contains("i-name")) { const r = e.target.closest(".ing-row"); r._active = -1; ingSuggest(r); } });
+ingBox.addEventListener("focusin", (e) => { if (e.target.classList.contains("i-name")) ingSuggest(e.target.closest(".ing-row")); });
+ingBox.addEventListener("focusout", (e) => {
+  if (!e.target.classList.contains("i-name")) return;
+  const row = e.target.closest(".ing-row");
+  setTimeout(() => { if (!row.contains(document.activeElement)) row.querySelector(".ing-suggest").hidden = true; }, 150);
+});
+ingBox.addEventListener("mousedown", (e) => { if (e.target.closest(".ing-suggest")) e.preventDefault(); });
+ingBox.addEventListener("click", (e) => {
+  const row = e.target.closest(".ing-row");
+  if (!row) return;
+  if (e.target.closest(".i-minus")) return stepRow(row, -1);
+  if (e.target.closest(".i-plus")) return stepRow(row, 1);
+  const li = e.target.closest(".ing-suggest .sugg");
+  if (!li) return;
+  if (li.dataset.new) {
+    const name = row.querySelector(".i-name").value.trim();
+    row.querySelector(".ing-suggest").hidden = true;
+    return Shop.openCustoms({ name }, (c) => pickIngredient(row, c.name));
+  }
+  pickIngredient(row, row._sugg[+li.dataset.k].name);
+});
 
 function textRow(value = "", kind = "step") {
   const div = document.createElement("div");
@@ -432,7 +505,7 @@ function renumberSteps() {
 function addRow(container, el, focus = true) {
   container.appendChild(el);
   renumberSteps();
-  if (focus) el.querySelector("input, textarea").focus();
+  if (focus) el.querySelector(".i-name, input, textarea").focus();
 }
 
 $("#add-ing").addEventListener("click", () => addRow($("#ing-rows"), ingRow()));
@@ -450,11 +523,21 @@ form.addEventListener("click", (e) => {
 
 // Enter in letzter Zutat → neue Zeile
 $("#ing-rows").addEventListener("keydown", (e) => {
+  const row = e.target.closest(".ing-row");
+  // Pfeiltasten in den Vorschlägen
+  if (e.target.classList.contains("i-name") && !row.querySelector(".ing-suggest").hidden && row._sugg?.length) {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      row._active = Math.max(-1, Math.min(row._sugg.length - 1, (row._active ?? -1) + (e.key === "ArrowDown" ? 1 : -1)));
+      return ingSuggest(row);
+    }
+    if (e.key === "Enter" && row._active >= 0) { e.preventDefault(); return pickIngredient(row, row._sugg[row._active].name); }
+    if (e.key === "Escape") { row.querySelector(".ing-suggest").hidden = true; return; }
+  }
   if (e.key === "Enter") {
     e.preventDefault();
-    const row = e.target.closest(".ing-row");
     if (row === $("#ing-rows").lastElementChild) addRow($("#ing-rows"), ingRow());
-    else row.nextElementSibling.querySelector("input").focus();
+    else row.nextElementSibling.querySelector(".i-name").focus();
   }
 });
 

@@ -333,7 +333,24 @@ input:focus, select:focus, textarea:focus { border-color: var(--mint-300); box-s
 input.invalid { border-color: var(--terracotta); box-shadow: 0 0 0 4px rgba(217,138,100,.18); }
 
 .rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.ing-head, .ing-row { display: grid; grid-template-columns: 90px 110px 1fr 38px; gap: 8px; align-items: center; }
+.ing-head, .ing-row { display: grid; grid-template-columns: 136px 104px minmax(0, 1fr) 38px; gap: 8px; align-items: center; }
+.ing-row { grid-template-areas: "amt unit name del" "sugg sugg sugg sugg"; }
+.ing-row .i-step { grid-area: amt; }
+.ing-row .i-unit { grid-area: unit; }
+.ing-row .i-name-wrap { grid-area: name; }
+.ing-row .row-del { grid-area: del; }
+.ing-row .ing-suggest { grid-area: sugg; }
+.i-step { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: var(--radius-sm); background: #fff; border: 1px solid var(--line); }
+.i-step:focus-within { border-color: var(--mint-300); box-shadow: 0 0 0 4px rgba(166,212,191,.3); }
+.i-step button { width: 30px; height: 34px; flex: 0 0 30px; border: 0; border-radius: 10px; background: var(--mint-50); color: var(--mint-700); font-size: 17px; font-weight: 800; cursor: pointer; }
+.i-step button:active { transform: scale(.92); }
+.rows .i-step input { flex: 1; min-width: 0; padding: 6px 2px; border: 0; background: transparent; text-align: center; font-weight: 800; box-shadow: none; }
+.rows .i-step input:focus { box-shadow: none; }
+.i-unit { padding-right: 6px; }
+.i-name-wrap { position: relative; min-width: 0; }
+.i-emoji { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 18px; pointer-events: none; }
+.rows .i-name-wrap input { padding-left: 38px; }
+.ing-suggest { list-style: none; margin: 0; padding: 6px; background: var(--paper); border: 1px solid var(--mint-100); border-radius: 16px; box-shadow: var(--shadow-md); }
 .ing-head { font-size: 12px; font-weight: 700; color: var(--ink-soft); padding: 0 6px 4px; }
 .text-row { display: grid; grid-template-columns: 30px 1fr 38px; gap: 8px; align-items: start; }
 .text-row .num { width: 30px; height: 30px; margin-top: 8px; border-radius: 50%; display: grid; place-items: center; background: var(--peach-soft); color: #a45c3b; font-weight: 800; font-size: 13px; }
@@ -574,14 +591,11 @@ body.locked .tabs, body.locked main { display: none; }
   .editor legend small { flex-basis: 100%; padding-left: 38px; }
   /* Zutat als kleine Karte: oben Menge + Einheit, darunter der Name in voller Breite */
   .ing-row {
-    grid-template-columns: 1fr 1fr 38px;
-    grid-template-areas: "amt unit del" "name name name";
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 34px;
+    grid-template-areas: "name name name" "amt unit del" "sugg sugg sugg";
     gap: 6px; padding: 8px; border-radius: var(--radius-sm); background: var(--mint-50); border: 1px solid var(--mint-100);
   }
-  .ing-row .i-amount { grid-area: amt; }
-  .ing-row .i-unit { grid-area: unit; }
-  .ing-row .i-name { grid-area: name; }
-  .ing-row .row-del { grid-area: del; }
+  .i-step button { width: 36px; flex-basis: 36px; height: 38px; }
   .rows { gap: 10px; }
   .text-row { grid-template-columns: 26px minmax(0, 1fr) 34px; gap: 6px; }
   .text-row .num { width: 26px; height: 26px; font-size: 12px; }

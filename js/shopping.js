@@ -276,7 +276,9 @@ const Shop = (() => {
       : `<li class="muted custom-empty">Noch keine eigenen Zutaten. Legt oben eure erste an – sie wird dann automatisch erkannt und vorgeschlagen.</li>`;
   }
 
-  function openCustoms(prefill = {}) {
+  let onCustomSaved = null; // Rückruf, z. B. aus dem Rezept-Editor
+  function openCustoms(prefill = {}, onSaved = null) {
+    onCustomSaved = onSaved;
     suggestBox.hidden = true;
     resetCustomForm(prefill);
     renderCustoms();
@@ -304,6 +306,13 @@ const Shop = (() => {
     const fromSearch = !editingCustom && input.value.trim().toLowerCase() === name.toLowerCase();
     resetCustomForm();
     await save([c]);
+    if (onCustomSaved && !editingCustom) {
+      const cb = onCustomSaved;
+      onCustomSaved = null;
+      closeModal($("#custom-modal"));
+      cb(c);
+      return;
+    }
     if (fromSearch) { closeModal($("#custom-modal")); openQty({ name: c.name, cat: c.cat, emoji: c.emoji }); }
   });
 
@@ -425,5 +434,7 @@ const Shop = (() => {
   Store.shop.onChange(() => load());
   document.addEventListener("visibilitychange", () => { if (!document.hidden && Store.cloud && !document.body.classList.contains("locked")) load(); });
 
-  return { load, toggleIngredient, addAll, onList, refreshRecipeButtons };
+  $("#custom-modal").addEventListener("close", () => { onCustomSaved = null; });
+
+  return { load, toggleIngredient, addAll, onList, refreshRecipeButtons, openCustoms };
 })();
