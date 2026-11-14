@@ -23,7 +23,23 @@ const TAGS = [
   { id: "warm", label: "Warm", emoji: "🔥" },
   { id: "kalt", label: "Kalt", emoji: "🧊" },
 ];
-const tagById = (id) => TAGS.find((t) => t.id === id);
+/* Eigene Filter-Merkmale für „Backen“ */
+const BAKE_TAGS = [
+  { id: "kuchen", label: "Kuchen", emoji: "🍰" },
+  { id: "torten", label: "Torten", emoji: "🎂" },
+  { id: "kekse", label: "Kekse & Plätzchen", emoji: "🍪" },
+  { id: "muffins", label: "Muffins & Cupcakes", emoji: "🧁" },
+  { id: "brot", label: "Brot", emoji: "🍞" },
+  { id: "broetchen", label: "Brötchen", emoji: "🥖" },
+  { id: "hefeteig", label: "Hefeteig", emoji: "🥐" },
+  { id: "suess", label: "Süß", emoji: "🍯" },
+  { id: "herzhaft", label: "Herzhaft", emoji: "🥨" },
+  { id: "weihnachten", label: "Weihnachten", emoji: "🎄" },
+];
+/** Platzhalter-Emoji: bei Backrezepten das erste Merkmal (🍪, 🍞 …), sonst die Kategorie */
+const recipeEmoji = (r) => (r.type === "backen" && r.tags?.length && tagById(r.tags[0])?.emoji) || catById(r.category).emoji;
+const tagsFor = (type) => (type === "backen" ? BAKE_TAGS : TAGS);
+const tagById = (id) => TAGS.find((t) => t.id === id) || BAKE_TAGS.find((t) => t.id === id);
 const TYPES = { kochen: { label: "Kochen", emoji: "🍳" }, backen: { label: "Backen", emoji: "🧁" } };
 
 /** ältere Rezepte ohne Art/Merkmale auf das neue Format bringen */
@@ -187,11 +203,12 @@ $("#category-chips").addEventListener("click", (e) => {
 function thumbHTML(r, cls = "thumb") {
   return r.image
     ? `<div class="${cls}"><img src="${r.image}" alt="" loading="lazy" width="64" height="64" /></div>`
-    : `<div class="${cls} ${phClass(r)}">${catById(r.category).emoji}</div>`;
+    : `<div class="${cls} ${phClass(r)}">${recipeEmoji(r)}</div>`;
 }
 
 /* ---------- Kochen / Backen ---------- */
 document.querySelectorAll(".subtab").forEach((b) => b.addEventListener("click", () => {
+  if (state.type !== b.dataset.type) state.tags.clear(); // Merkmale gehören zur jeweiligen Art
   state.type = b.dataset.type;
   state.category = "all";
   try { localStorage.setItem("foodies-type", state.type); } catch {}
@@ -199,19 +216,16 @@ document.querySelectorAll(".subtab").forEach((b) => b.addEventListener("click", 
 }));
 
 /* ---------- Filter-Merkmale ---------- */
-function tagButtons(selected) {
-  return TAGS.map((t) => `<button type="button" class="tag" data-tag="${t.id}" aria-pressed="${selected.has(t.id)}">${t.emoji} ${esc(t.label)}</button>`).join("");
+function tagButtons(selected, list = TAGS) {
+  return list.map((t) => `<button type="button" class="tag" data-tag="${t.id}" aria-pressed="${selected.has(t.id)}">${t.emoji} ${esc(t.label)}</button>`).join("");
 }
 function renderFilter() {
-  const cooking = state.type === "kochen";
   const btn = $("#btn-filter"), n = state.tags.size;
-  btn.hidden = !cooking;
-  if (!cooking) $("#filter-panel").hidden = true;
   btn.setAttribute("aria-expanded", String(!$("#filter-panel").hidden));
   btn.classList.toggle("has-active", n > 0);
   $("#filter-badge").hidden = !n;
   $("#filter-badge").textContent = n;
-  $("#filter-tags").innerHTML = tagButtons(state.tags);
+  $("#filter-tags").innerHTML = tagButtons(state.tags, tagsFor(state.type));
 }
 $("#btn-filter").addEventListener("click", () => { $("#filter-panel").hidden = !$("#filter-panel").hidden; renderFilter(); });
 $("#filter-tags").addEventListener("click", (e) => {
@@ -231,7 +245,7 @@ function renderList() {
   renderFilter();
   const q = state.search.trim().toLowerCase();
   const ofType = state.recipes.filter((r) => r.type === state.type);
-  const useTags = state.type === "kochen" && state.tags.size;
+  const useTags = state.tags.size;
   const list = ofType
     .filter((r) => state.category === "all" || r.category === state.category)
     .filter((r) => !useTags || [...state.tags].every((t) => r.tags.includes(t)))
@@ -257,7 +271,7 @@ function renderList() {
           ${r.time ? `<span>⏱️ ${r.time} Min.</span>` : ""}
           <span>👥 ${r.servings} ${r.servings === 1 ? "Portion" : "Portionen"}</span>
           <span>🧂 ${r.ingredients.length} Zutaten</span>
-          ${r.type === "kochen" && r.tags.length ? `<span class="bar-tags" title="${esc(r.tags.map((t) => tagById(t)?.label).filter(Boolean).join(", "))}">${r.tags.map((t) => tagById(t)?.emoji || "").join(" ")}</span>` : ""}
+          ${r.tags.length ? `<span class="bar-tags" title="${esc(r.tags.map((t) => tagById(t)?.label).filter(Boolean).join(", "))}">${r.tags.map((t) => tagById(t)?.emoji || "").join(" ")}</span>` : ""}
         </div>
       </div>
       <span class="bar-chevron" aria-hidden="true">›</span>
@@ -283,7 +297,7 @@ function openDetail(id) {
 
 function renderDetail() {
   const r = state.current, cat = catById(r.category);
-  const hero = r.image ? `<img src="${r.image}" alt="${esc(r.title)}" />` : catById(r.category).emoji;
+  const hero = r.image ? `<img src="${r.image}" alt="${esc(r.title)}" />` : recipeEmoji(r);
   $("#detail-content").innerHTML = `
     <div class="hero ${r.image ? "" : phClass(r)}">
       ${hero}
@@ -298,7 +312,7 @@ function renderDetail() {
       <div class="meta-chips">
         <span class="meta-chip">${TYPES[r.type].emoji} ${TYPES[r.type].label}</span>
         <span class="meta-chip">${cat.emoji} ${esc(cat.label)}</span>
-        ${r.type === "kochen" ? r.tags.map((t) => tagById(t)).filter(Boolean).map((t) => `<span class="meta-chip tag-chip">${t.emoji} ${esc(t.label)}</span>`).join("") : ""}
+        ${r.tags.map((t) => tagById(t)).filter(Boolean).map((t) => `<span class="meta-chip tag-chip">${t.emoji} ${esc(t.label)}</span>`).join("")}
         ${r.time ? `<span class="meta-chip">⏱️ ${r.time} Min.</span>` : ""}
         <span class="meta-chip">🧂 ${r.ingredients.length} Zutaten</span>
         <span class="meta-chip">👩‍🍳 ${r.steps.length} Schritte</span>
@@ -463,7 +477,8 @@ drop.addEventListener("drop", (e) => handleFile(e.dataTransfer.files[0]));
 function setEditType(type) {
   state.editType = type;
   document.querySelectorAll("#f-type .seg-btn").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.type === type)));
-  $("#f-tags-field").hidden = type !== "kochen";
+  // Merkmale der jeweiligen Art anzeigen; nicht passende fallen beim Speichern weg
+  $("#f-tags").innerHTML = tagButtons(state.editTags, tagsFor(type));
 }
 $("#f-type").addEventListener("click", (e) => { const b = e.target.closest(".seg-btn"); if (b) setEditType(b.dataset.type); });
 $("#f-tags").addEventListener("click", (e) => {
@@ -482,9 +497,8 @@ function openEditor(recipe = null, { draft = false } = {}) {
   $("#f-title").value = recipe?.title || "";
   $("#f-title").classList.remove("invalid");
   $("#f-category").value = recipe?.category || (state.type === "backen" ? "backen" : "haupt");
-  setEditType(recipe?.type || state.type);
   state.editTags = new Set(recipe?.tags || []);
-  $("#f-tags").innerHTML = tagButtons(state.editTags);
+  setEditType(recipe?.type || state.type);
   $("#f-servings").value = recipe?.servings || 2;
   $("#f-time").value = recipe?.time || "";
   setImage(recipe?.image || null);
@@ -526,7 +540,7 @@ form.addEventListener("submit", async (e) => {
     title,
     type: state.editType,
     category: $("#f-category").value,
-    tags: state.editType === "kochen" ? TAGS.map((t) => t.id).filter((id) => state.editTags.has(id)) : [],
+    tags: tagsFor(state.editType).map((t) => t.id).filter((id) => state.editTags.has(id)),
     servings: Math.max(1, Math.min(50, parseInt($("#f-servings").value, 10) || 2)),
     time: parseInt($("#f-time").value, 10) || null,
     image: state.image,
