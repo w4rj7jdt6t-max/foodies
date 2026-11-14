@@ -49,8 +49,24 @@ function normalize(r) {
   if (!r.type) r.type = r.category === "backen" ? "backen" : "kochen";
   if (!Array.isArray(r.tags)) r.tags = SAMPLE_RECIPES.find((s) => s.title === r.title)?.tags || [];
   r.tags = r.tags.filter((t) => tagById(t)); // entfernte Merkmale aussortieren
+  if (!Array.isArray(r.links)) r.links = [];
   return r;
 }
+
+/* ---------- Links ---------- */
+/** Eingabe → sichere https-Adresse (oder null). Nur http(s) ist erlaubt. */
+function cleanUrl(raw) {
+  let s = String(raw || "").trim();
+  if (!s) return null;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = "https://" + s.replace(/^\/+/, "");
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (!u.hostname.includes(".")) return null;
+    return u.href;
+  } catch { return null; }
+}
+const linkHost = (url) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
 
 const SAMPLE_RECIPES = [
   {
@@ -347,6 +363,12 @@ function renderDetail() {
       </div>
 
       ${r.tips.length ? `<section class="card tips-card"><h3>Tipps &amp; Hinweise</h3><ul>${r.tips.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></section>` : ""}
+      ${(r.links || []).length ? `<section class="card links-card"><h3>Links</h3><ul class="link-list">${r.links.map((l) => `<li>
+        <a class="link-item" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">
+          <span class="link-icon" aria-hidden="true">🔗</span>
+          <span class="link-text"><strong>${esc(l.title || linkHost(l.url))}</strong><small>${esc(linkHost(l.url))}</small></span>
+          <span class="link-go" aria-hidden="true">↗</span>
+        </a></li>`).join("")}</ul></section>` : ""}
     </div>`;
 }
 
@@ -520,13 +542,27 @@ function addRow(container, el, focus = true) {
 $("#add-ing").addEventListener("click", () => addRow($("#ing-rows"), ingRow()));
 $("#add-step").addEventListener("click", () => addRow($("#step-rows"), textRow("", "step")));
 $("#add-tip").addEventListener("click", () => addRow($("#tip-rows"), textRow("", "tip")));
+$("#add-link").addEventListener("click", () => addRow($("#link-rows"), linkRow()));
+
+function linkRow(l = {}) {
+  const div = document.createElement("div");
+  div.className = "link-row";
+  div.innerHTML = `
+    <span class="num link-num" aria-hidden="true">🔗</span>
+    <div class="link-fields">
+      <input type="url" class="l-url" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://www.chefkoch.de/…" value="${esc(l.url || "")}" aria-label="Link" />
+      <input type="text" class="l-title" placeholder="Bezeichnung (optional), z. B. Originalrezept" value="${esc(l.title || "")}" aria-label="Bezeichnung" />
+    </div>
+    <button type="button" class="row-del" aria-label="Entfernen">✕</button>`;
+  return div;
+}
 
 form.addEventListener("click", (e) => {
   const del = e.target.closest(".row-del");
   if (!del) return;
   const row = del.parentElement, box = row.parentElement;
   row.remove();
-  if (!box.children.length) box.appendChild(box.id === "ing-rows" ? ingRow() : textRow("", box.id === "tip-rows" ? "tip" : "step"));
+  if (!box.children.length) box.appendChild(box.id === "ing-rows" ? ingRow() : box.id === "link-rows" ? linkRow() : textRow("", box.id === "tip-rows" ? "tip" : "step"));
   renumberSteps();
 });
 
@@ -613,6 +649,7 @@ function openEditor(recipe = null, { draft = false } = {}) {
   fill($("#ing-rows"), recipe?.ingredients || [{}, {}, {}], (i) => ingRow(i));
   fill($("#step-rows"), recipe?.steps || ["", ""], (s) => textRow(s, "step"));
   fill($("#tip-rows"), recipe?.tips || [""], (t) => textRow(t, "tip"));
+  fill($("#link-rows"), recipe?.links || [], (l) => linkRow(l));
   renumberSteps();
   openModal($("#editor-modal"));
   form.querySelectorAll("textarea").forEach((t) => { t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; });
@@ -634,6 +671,18 @@ form.addEventListener("submit", async (e) => {
     name: row.querySelector(".i-name").value.trim(),
   })).filter((i) => i.name);
   const texts = (box) => [...box.querySelectorAll("textarea")].map((t) => t.value.trim()).filter(Boolean);
+  const links = [];
+  for (const row of $("#link-rows").children) {
+    const raw = row.querySelector(".l-url").value.trim();
+    if (!raw) continue;
+    const url = cleanUrl(raw);
+    if (!url) {
+      row.querySelector(".l-url").classList.add("invalid");
+      row.querySelector(".l-url").focus();
+      return toast("Dieser Link sieht nicht richtig aus 🔗");
+    }
+    links.push({ url, title: row.querySelector(".l-title").value.trim() });
+  }
 
   const now = Date.now();
   let recipe = {
@@ -650,6 +699,7 @@ form.addEventListener("submit", async (e) => {
     ingredients,
     steps: texts($("#step-rows")),
     tips: texts($("#tip-rows")),
+    links: links,
   };
 
   const saveBtn = form.querySelector('button[type="submit"]');
@@ -773,7 +823,7 @@ document.addEventListener("DOMContentLoaded", async function init() {
     if (!state.recipes.length && !seeded) {
       const base = Date.now();
       for (const [i, s] of SAMPLE_RECIPES.entries()) {
-        const r = { ...s, id: uid(), image: null, createdAt: base - i * 1000, updatedAt: base };
+        const r = normalize({ ...s, id: uid(), image: null, createdAt: base - i * 1000, updatedAt: base });
         await DB.put(r);
         state.recipes.push(r);
       }

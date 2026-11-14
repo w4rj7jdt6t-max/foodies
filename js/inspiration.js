@@ -172,7 +172,8 @@ $("#idea-content").addEventListener("click", (e) => {
       title: i.title, type: "kochen", category: i.category, tags: i.tags,
       servings: i.servings || 4, time: i.time || null, image: i.image || null,
       ingredients: i.ingredients, steps: i.steps,
-      tips: [...i.tips, ...(i.source ? [`Quelle: ${i.source.url}`] : [])],
+      tips: i.tips,
+      links: i.source ? [{ url: i.source.url, title: i.source.label === "Originalrezept" ? "Originalrezept" : "TheMealDB" }] : [],
     }, { draft: true });
   }
   if (e.target.closest("li") && e.target.closest(".step-list")) e.target.closest("li").classList.toggle("done");
