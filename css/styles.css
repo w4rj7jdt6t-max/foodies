@@ -1,5 +1,6 @@
 /* ================= foodies – Grundstil ================= */
 :root {
+  color-scheme: light;
   --cream: #fbf8f2;
   --cream-2: #f6f1e7;
   --paper: #fffdf9;
@@ -126,6 +127,7 @@ main { max-width: 860px; margin: 0 auto; padding: 0 16px 80px; }
 }
 .icon-btn:hover { background: #fff; color: var(--ink); }
 .icon-btn:active { transform: scale(.94); }
+.icon-btn.armed { width: auto; padding: 0 14px; border-radius: 999px; background: var(--terracotta); color: #fff; font-weight: 800; font-size: 13px; }
 
 /* ================= Toolbar ================= */
 .toolbar { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }

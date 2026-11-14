@@ -284,7 +284,15 @@ $("#detail-content").addEventListener("click", async (e) => {
   if (act === "plus") return setServings(state.servings + 1);
   if (act === "edit") { closeModal($("#detail-modal")); return openEditor(state.current); }
   if (act === "delete") {
-    if (!confirm(`„${state.current.title}“ wirklich löschen?`)) return;
+    // Zweistufig: erster Tipp fragt nach, zweiter löscht (statt confirm()-Dialog)
+    const btn = e.target.closest("[data-action]");
+    if (!btn.classList.contains("armed")) {
+      btn.classList.add("armed");
+      btn.textContent = "Wirklich löschen?";
+      clearTimeout(btn._t);
+      btn._t = setTimeout(() => { btn.classList.remove("armed"); btn.textContent = "🗑️"; }, 3000);
+      return;
+    }
     await DB.remove(state.current.id);
     state.recipes = state.recipes.filter((r) => r.id !== state.current.id);
     closeModal($("#detail-modal"));
