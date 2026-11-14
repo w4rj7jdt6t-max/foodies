@@ -725,6 +725,8 @@ body.locked .tabs, body.locked main { display: none; }
 .ing-list li.done .ing-cart { text-decoration: none; }
 .add-all-btn { width: 100%; margin-top: 12px; }
 
+.site-footer { text-align: center; padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0px)); font-size: 11.5px; color: var(--ink-soft); opacity: .7; }
+
 /* ================= Toast ================= */
 .toast {
   position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0;

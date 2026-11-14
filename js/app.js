@@ -943,3 +943,35 @@ async function removeAutoImages() {
     renderList();
   } finally { cleanupRunning = false; }
 }
+
+/* ================= Neue Version automatisch laden =================
+ * Besonders iPhones (v. a. als App auf dem Home-Bildschirm) behalten eine geöffnete Seite
+ * sehr lange im Speicher. Wir vergleichen deshalb die Versionsnummer der Skripte mit der
+ * auf dem Server und laden neu, sobald es passt (nie während ein Rezept bearbeitet wird).
+ */
+const APP_VERSION = (document.querySelector('script[src*="js/app.js"]')?.getAttribute("src").match(/v=(\d+)/) || [])[1] || "?";
+$("#app-version").textContent = `foodies · Version ${APP_VERSION}`;
+let updatePending = false;
+async function checkForUpdate() {
+  try {
+    const res = await fetch(`index.html?check=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return;
+    const remote = ((await res.text()).match(/js\/app\.js\?v=(\d+)/) || [])[1];
+    if (remote && APP_VERSION !== "?" && remote !== APP_VERSION) {
+      updatePending = true;
+      reloadIfIdle();
+    }
+  } catch {}
+}
+function reloadIfIdle() {
+  if (!updatePending) return;
+  // nicht mitten in der Bearbeitung neu laden – Entwurf wird ohnehin gesichert
+  if ($("#editor-modal").open || $("#custom-modal").open) { toast("Neue Version verfügbar – wird nach dem Speichern geladen ✨"); return; }
+  location.reload();
+}
+$("#editor-modal").addEventListener("close", () => setTimeout(reloadIfIdle, 1500));
+$("#custom-modal").addEventListener("close", () => setTimeout(reloadIfIdle, 500));
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate(); });
+window.addEventListener("pageshow", (e) => { if (e.persisted) checkForUpdate(); }); // aus dem Zwischenspeicher zurück
+setTimeout(checkForUpdate, 3000);
+setInterval(checkForUpdate, 10 * 60 * 1000);

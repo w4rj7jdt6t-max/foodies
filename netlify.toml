@@ -2,3 +2,10 @@
 [build]
   publish = "."
   command = ""
+
+# Seite, Skripte und Styles immer frisch abfragen (sonst laufen iPhones/Home-Bildschirm-Apps
+# noch mit alten Versionen). Bilder dürfen weiter zwischengespeichert werden.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache"
