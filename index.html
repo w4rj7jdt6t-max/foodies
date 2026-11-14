@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>foodies</title>
+  <meta name="theme-color" content="#eef6f1" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌿</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="bg-blobs" aria-hidden="true"><span></span><span></span><span></span></div>
+
+  <header class="site-header">
+    <div class="brand">
+      <span class="brand-mark">🌿</span>
+      <h1 class="brand-name">foodies</h1>
+    </div>
+    <p class="brand-tag">Unsere kleine Küche – Rezepte, Pläne &amp; Ideen</p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Bereiche">
+    <button class="tab is-active" role="tab" data-tab="rezepte" aria-selected="true"><span class="tab-emoji">🍝</span>Rezepte</button>
+    <button class="tab" role="tab" data-tab="kalender" aria-selected="false"><span class="tab-emoji">🗓️</span>Kalender</button>
+    <button class="tab" role="tab" data-tab="reste" aria-selected="false"><span class="tab-emoji">🥡</span>Reste</button>
+    <button class="tab" role="tab" data-tab="einkauf" aria-selected="false"><span class="tab-emoji">🛒</span>Einkaufsliste</button>
+    <button class="tab" role="tab" data-tab="inspiration" aria-selected="false"><span class="tab-emoji">✨</span>Inspiration</button>
+  </nav>
+
+  <main>
+    <!-- ============ REZEPTE ============ -->
+    <section class="panel is-active" id="panel-rezepte" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <h2>Unsere Rezepte</h2>
+          <p class="muted" id="recipe-count">–</p>
+        </div>
+        <button class="btn btn-primary" id="btn-new"><span aria-hidden="true">＋</span> Neu</button>
+      </div>
+
+      <div class="toolbar">
+        <label class="search">
+          <span aria-hidden="true">🔎</span>
+          <input type="search" id="search" placeholder="Rezept oder Zutat suchen …" autocomplete="off" />
+        </label>
+        <div class="chips" id="category-chips"></div>
+      </div>
+
+      <ul class="recipe-list" id="recipe-list"></ul>
+      <div class="empty" id="recipe-empty" hidden>
+        <div class="empty-emoji">🥄</div>
+        <p><strong>Noch keine Rezepte hier.</strong><br />Legt mit „＋ Neu“ euer erstes Lieblingsrezept an.</p>
+      </div>
+    </section>
+
+    <!-- ============ PLATZHALTER ============ -->
+    <section class="panel" id="panel-kalender" role="tabpanel"><div class="soon"><div class="soon-emoji">🗓️</div><h2>Kalender</h2><p class="muted">Hier planen wir bald unsere Woche. Kommt als Nächstes!</p></div></section>
+    <section class="panel" id="panel-reste" role="tabpanel"><div class="soon"><div class="soon-emoji">🥡</div><h2>Reste</h2><p class="muted">Was ist noch im Kühlschrank? Kommt bald.</p></div></section>
+    <section class="panel" id="panel-einkauf" role="tabpanel"><div class="soon"><div class="soon-emoji">🛒</div><h2>Einkaufsliste</h2><p class="muted">Gemeinsame Einkaufsliste – kommt bald.</p></div></section>
+    <section class="panel" id="panel-inspiration" role="tabpanel"><div class="soon"><div class="soon-emoji">✨</div><h2>Inspiration</h2><p class="muted">Ideen &amp; Rezepte zum Ausprobieren – kommt bald.</p></div></section>
+  </main>
+
+  <!-- ============ REZEPT-DETAIL ============ -->
+  <dialog class="modal" id="detail-modal">
+    <div class="modal-inner" id="detail-content"></div>
+  </dialog>
+
+  <!-- ============ REZEPT-EDITOR ============ -->
+  <dialog class="modal" id="editor-modal">
+    <form class="modal-inner editor" id="editor-form" novalidate>
+      <div class="modal-top">
+        <h2 id="editor-title">Neues Rezept</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Schließen">✕</button>
+      </div>
+
+      <!-- 1 Titel / Bild -->
+      <fieldset class="card section">
+        <legend><span class="step-badge">1</span> Titel &amp; Bild</legend>
+        <div class="title-grid">
+          <label class="image-drop" id="image-drop">
+            <input type="file" accept="image/*" id="image-input" hidden />
+            <img id="image-preview" alt="" hidden />
+            <span class="image-hint" id="image-hint"><span class="big">📷</span>Bild hinzufügen<br /><small>klicken oder hineinziehen</small></span>
+            <button type="button" class="image-remove" id="image-remove" hidden aria-label="Bild entfernen">✕</button>
+          </label>
+          <div class="fields">
+            <label class="field">
+              <span>Titel</span>
+              <input type="text" id="f-title" placeholder="z. B. Cremige Tomaten-Pasta" required />
+            </label>
+            <div class="field-row">
+              <label class="field">
+                <span>Kategorie</span>
+                <select id="f-category"></select>
+              </label>
+              <label class="field">
+                <span>Portionen</span>
+                <input type="number" id="f-servings" min="1" max="50" value="2" />
+              </label>
+              <label class="field">
+                <span>Zeit (Min.)</span>
+                <input type="number" id="f-time" min="0" step="5" placeholder="30" />
+              </label>
+            </div>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- 2 Zutaten -->
+      <fieldset class="card section">
+        <legend><span class="step-badge">2</span> Zutaten <small class="muted">für die oben angegebene Portionenzahl</small></legend>
+        <div class="ing-head" aria-hidden="true"><span>Menge</span><span>Einheit</span><span>Zutat</span><span></span></div>
+        <div id="ing-rows" class="rows"></div>
+        <button type="button" class="btn btn-soft" id="add-ing">＋ Zutat</button>
+      </fieldset>
+
+      <!-- 3 Zubereitung -->
+      <fieldset class="card section">
+        <legend><span class="step-badge">3</span> Zubereitung</legend>
+        <div id="step-rows" class="rows"></div>
+        <button type="button" class="btn btn-soft" id="add-step">＋ Schritt</button>
+      </fieldset>
+
+      <!-- 4 Tipps -->
+      <fieldset class="card section">
+        <legend><span class="step-badge">4</span> Tipps &amp; Hinweise</legend>
+        <div id="tip-rows" class="rows"></div>
+        <button type="button" class="btn btn-soft" id="add-tip">＋ Tipp</button>
+      </fieldset>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Abbrechen</button>
+        <button type="submit" class="btn btn-primary">Rezept speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <datalist id="units">
+    <option value="g"></option><option value="kg"></option><option value="ml"></option><option value="l"></option>
+    <option value="EL"></option><option value="TL"></option><option value="Prise"></option><option value="Stk."></option>
+    <option value="Zehe"></option><option value="Dose"></option><option value="Bund"></option><option value="Becher"></option>
+    <option value="Pck."></option><option value="Scheibe"></option><option value="Tasse"></option>
+  </datalist>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/db.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
