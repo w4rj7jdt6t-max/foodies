@@ -82,6 +82,12 @@ async function runSearch({ random = false } = {}) {
       ? await claudeIdeas(q, [...insp.tags], random, ctl.signal)
       : await mealdbIdeas(q, [...insp.tags], random);
     if (ctl !== insp.ctl) return; // inzwischen neue Suche gestartet
+    if (insp.provider === "mealdb" && ideas.length) {
+      setStatus("Übersetze ins Deutsche …", { spinner: true });
+      // höchstens 8 s warten – sonst lieber englisch anzeigen als gar nichts
+      await Promise.race([translateCards(ideas), new Promise((r) => setTimeout(r, 8000))]);
+      if (ctl !== insp.ctl) return;
+    }
     insp.ideas = ideas;
     renderIdeas();
     setStatus(ideas.length ? "" : `<span class="big">🤷</span>Dazu haben wir nichts gefunden.<br />Probiert weniger Filter oder ein anderes Stichwort – oder sucht über die Links unten weiter.`);
@@ -105,12 +111,21 @@ function errorText(err) {
 $("#insp-results").addEventListener("click", async (e) => {
   const card = e.target.closest(".idea-card");
   if (!card) return;
-  let idea = insp.ideas[+card.dataset.i];
-  if (idea.lazy) {
+  const k = +card.dataset.i;
+  let idea = insp.ideas[k];
+  if (idea.lazy || (insp.provider === "mealdb" && !idea.translated)) {
+    if (card.dataset.loading) return;
+    card.dataset.loading = "1";
     card.style.opacity = ".6";
-    try { idea = insp.ideas[+card.dataset.i] = await mealdbLookup(idea.id); }
-    catch { card.style.opacity = ""; return toast("Rezept konnte nicht geladen werden 😕"); }
-    card.style.opacity = "";
+    try {
+      if (idea.lazy) idea = await mealdbLookup(idea.id);
+      idea = insp.ideas[k] = await translateIdea(idea);
+    } catch {
+      return toast("Rezept konnte nicht geladen werden 😕");
+    } finally {
+      card.style.opacity = "";
+      delete card.dataset.loading;
+    }
   }
   openIdea(idea);
 });
@@ -295,7 +310,7 @@ function mealToIdea(m) {
     const name = (m["strIngredient" + i] || "").trim();
     if (!name) continue;
     const { amount, unit, note } = parseMeasure(m["strMeasure" + i]);
-    ingredients.push({ amount, unit, name: note ? `${name} (${note})` : name });
+    ingredients.push({ amount, unit: unit || note, name }); // Einheit/Hinweis noch englisch → translateIdea
   }
   const all = ingredients.map((i) => i.name.toLowerCase()).join(" | ");
   const tags = [];
@@ -310,13 +325,14 @@ function mealToIdea(m) {
   const url = m.strSource || `https://www.themealdb.com/meal/${m.idMeal}`;
   return {
     id: m.idMeal, title: m.strMeal, image: m.strMealThumb, emoji: "",
+    meta: { area: m.strArea, cat: m.strCategory },
     summary: [m.strArea, m.strCategory].filter(Boolean).join(" · "),
     time: null, servings: null,
     category: CAT_MAP[m.strCategory] || (/soup/i.test(m.strMeal) ? "suppe" : /salad/i.test(m.strMeal) ? "salat" : "haupt"),
     tags: TAG_IDS.filter((t) => tags.includes(t)),
     ingredients, steps, tips: [],
     source: { label: m.strSource ? "Originalrezept" : "Bei TheMealDB", url },
-    origin: "Aus der freien Rezept-Datenbank TheMealDB (englisch) – beim Übernehmen könnt ihr alles übersetzen und anpassen.",
+    origin: "Aus der freien Rezept-Datenbank TheMealDB.",
   };
 }
 
@@ -339,7 +355,7 @@ function mealToIdea(m) {
   }
   $("#insp-source").textContent = insp.provider === "claude"
     ? "Rezeptideen von Claude – plus Links zum Weitersuchen im Netz"
-    : "Rezeptideen aus dem Internet (TheMealDB) – plus Chefkoch & Google";
+    : "Rezeptideen aus dem Internet, automatisch auf Deutsch – plus Chefkoch & Google";
   if (insp.provider === "claude") {
     if (!insp.started) setStatus(welcome);
   } else {
