@@ -36,7 +36,12 @@ const BAKE_TAGS = [
 /** Platzhalter-Emoji: bei Backrezepten das erste Merkmal (🍪, 🍞 …), sonst die Kategorie */
 const recipeEmoji = (r) => (r.type === "backen" && r.tags?.length && tagById(r.tags[0])?.emoji) || catById(r.category).emoji;
 const tagsFor = (type) => (type === "backen" ? BAKE_TAGS : TAGS);
-const tagById = (id) => TAGS.find((t) => t.id === id) || BAKE_TAGS.find((t) => t.id === id);
+/* zusätzliche Filter nur für „Inspiration“ */
+const INSP_EXTRA_TAGS = [
+  { id: "suppe", label: "Suppe", emoji: "🥣" },
+  { id: "salat", label: "Salat", emoji: "🥗" },
+];
+const tagById = (id) => TAGS.find((t) => t.id === id) || BAKE_TAGS.find((t) => t.id === id) || INSP_EXTRA_TAGS.find((t) => t.id === id);
 const TYPES = { kochen: { label: "Kochen", emoji: "🍳" }, backen: { label: "Backen", emoji: "🧁" } };
 
 /** ältere Rezepte ohne Art/Merkmale auf das neue Format bringen */

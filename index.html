@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=22" />
+  <link rel="stylesheet" href="css/styles.css?v=23" />
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -233,20 +233,13 @@
       <form class="toolbar" id="insp-form" autocomplete="off">
         <label class="search">
           <span aria-hidden="true">🔎</span>
-          <input type="search" id="insp-search" placeholder="Worauf habt ihr Lust? z. B. Curry, Kürbis, Auflauf …" enterkeyhint="search" />
+          <input type="search" id="insp-search" placeholder="Worauf habt ihr Lust? z. B. Lasagne, Auflauf …" enterkeyhint="search" />
           <button type="submit" class="search-go">Suchen</button>
         </label>
         <div class="filter-row">
           <button type="button" class="filter-btn" id="insp-filter-btn" aria-expanded="false" aria-controls="insp-filter-panel">
             <span aria-hidden="true">🎛️</span> Filter <span class="filter-badge" id="insp-filter-badge" hidden></span>
           </button>
-          <div class="chips" id="insp-quick">
-            <button type="button" class="chip" data-random>🎲 Überrasch uns</button>
-            <button type="button" class="chip" data-q="Kürbis">🎃 Kürbis</button>
-            <button type="button" class="chip" data-q="Curry">🍛 Curry</button>
-            <button type="button" class="chip" data-q="Suppe">🥣 Suppe</button>
-            <button type="button" class="chip" data-q="Salat">🥗 Salat</button>
-          </div>
         </div>
         <div class="filter-panel" id="insp-filter-panel" hidden>
           <div class="filter-panel-head">
@@ -254,6 +247,7 @@
             <button type="button" class="link-btn" id="insp-filter-reset">Zurücksetzen</button>
           </div>
           <div class="tag-picker" id="insp-filter-tags"></div>
+          <button type="button" class="tag insp-random" id="insp-random">🎲 Überrasch uns</button>
         </div>
       </form>
 
@@ -442,15 +436,15 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="js/config.js?v=22"></script>
-  <script src="js/db.js?v=22"></script>
-  <script src="js/store.js?v=22"></script>
-  <script src="js/app.js?v=22"></script>
-  <script src="js/groceries.js?v=22"></script>
-  <script src="js/shopping.js?v=22"></script>
-  <script src="js/calendar.js?v=22"></script>
-  <script src="js/reste.js?v=22"></script>
-  <script src="js/translate.js?v=22"></script>
-  <script src="js/inspiration.js?v=22"></script>
+  <script src="js/config.js?v=23"></script>
+  <script src="js/db.js?v=23"></script>
+  <script src="js/store.js?v=23"></script>
+  <script src="js/app.js?v=23"></script>
+  <script src="js/groceries.js?v=23"></script>
+  <script src="js/shopping.js?v=23"></script>
+  <script src="js/calendar.js?v=23"></script>
+  <script src="js/reste.js?v=23"></script>
+  <script src="js/translate.js?v=23"></script>
+  <script src="js/inspiration.js?v=23"></script>
 </body>
 </html>

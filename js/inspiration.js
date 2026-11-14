@@ -13,7 +13,7 @@ function renderInspFilter() {
   btn.setAttribute("aria-expanded", String(!$("#insp-filter-panel").hidden));
   $("#insp-filter-badge").hidden = !n;
   $("#insp-filter-badge").textContent = n;
-  $("#insp-filter-tags").innerHTML = tagButtons(insp.tags);
+  $("#insp-filter-tags").innerHTML = tagButtons(insp.tags, [...TAGS, ...INSP_EXTRA_TAGS]);
 }
 $("#insp-filter-btn").addEventListener("click", () => { $("#insp-filter-panel").hidden = !$("#insp-filter-panel").hidden; renderInspFilter(); });
 $("#insp-filter-tags").addEventListener("click", (e) => {
@@ -26,12 +26,7 @@ $("#insp-filter-tags").addEventListener("click", (e) => {
 $("#insp-filter-reset").addEventListener("click", () => { insp.tags.clear(); renderInspFilter(); if (insp.started) runSearch(); });
 
 $("#insp-form").addEventListener("submit", (e) => { e.preventDefault(); $("#insp-search").blur(); runSearch(); });
-$("#insp-quick").addEventListener("click", (e) => {
-  const c = e.target.closest(".chip");
-  if (!c) return;
-  if (c.hasAttribute("data-random")) { $("#insp-search").value = ""; runSearch({ random: true }); }
-  else { $("#insp-search").value = c.dataset.q; runSearch(); }
-});
+$("#insp-random").addEventListener("click", () => { $("#insp-search").value = ""; runSearch({ random: true }); });
 
 /* ---------- Status & Ergebnisse ---------- */
 function setStatus(html, { spinner = false } = {}) {
@@ -185,7 +180,7 @@ $("#idea-content").addEventListener("click", (e) => {
 
 /* ================= Quelle 1: Claude ================= */
 const CAT_IDS = CATEGORIES.map((c) => c.id);
-const TAG_IDS = TAGS.map((t) => t.id);
+const TAG_IDS = [...TAGS, ...INSP_EXTRA_TAGS].map((t) => t.id);
 
 async function claudeIdeas(q, tags, random, signal) {
   const month = new Date().toLocaleDateString("de-DE", { month: "long" });
@@ -195,7 +190,7 @@ async function claudeIdeas(q, tags, random, signal) {
 Wunsch / Suchbegriff: ${q && !random ? `"${q}"` : `keiner – überrasche mit saisonalen Ideen für ${month}`}
 Pflicht-Merkmale (JEDES Rezept muss ALLE erfüllen): ${tagText}
 
-Merkmal-IDs und Bedeutung: fruehstueck=Frühstücksgericht, hauptgericht=sättigendes Hauptgericht (Mittag-/Abendessen), haehnchen=enthält Hähnchen, hack=enthält Hackfleisch, vegetarisch=ohne Fleisch und Fisch, pasta=Nudelgericht, reis=mit Reis, kartoffeln=mit Kartoffeln, warm=wird warm gegessen, kalt=wird kalt gegessen.
+Merkmal-IDs und Bedeutung: fruehstueck=Frühstücksgericht, hauptgericht=sättigendes Hauptgericht (Mittag-/Abendessen), haehnchen=enthält Hähnchen, hack=enthält Hackfleisch, vegetarisch=ohne Fleisch und Fisch, pasta=Nudelgericht, reis=mit Reis, kartoffeln=mit Kartoffeln, warm=wird warm gegessen, kalt=wird kalt gegessen, suppe=Suppe oder Eintopf, salat=Salat.
 Kategorie-IDs: ${CAT_IDS.join(", ")}.
 
 Antworte NUR mit einem JSON-Array aus 6 Objekten in genau dieser Form:
@@ -233,6 +228,8 @@ const mealdb = async (path) => {
 // Merkmale → Datenbank-Abfrage (warm/kalt werden anhand des Gerichts geschätzt)
 const MAIN_CATS = ["Beef", "Chicken", "Lamb", "Pork", "Seafood", "Pasta", "Vegetarian", "Vegan", "Goat", "Miscellaneous"];
 const TAG_QUERY = {
+  suppe: ["search.php?s=soup", "search.php?s=stew", "search.php?s=chowder"],
+  salat: "search.php?s=salad",
   fruehstueck: "filter.php?c=Breakfast",
   hauptgericht: MAIN_CATS.map((c) => "filter.php?c=" + c), // mehrere Kategorien → Vereinigung
   haehnchen: "filter.php?c=Chicken", hack: "filter.php?i=Minced_Beef", vegetarisch: "filter.php?c=Vegetarian",
@@ -325,6 +322,8 @@ function mealToIdea(m) {
   if (/\brice\b/.test(all)) tags.push("reis");
   if (/potato/.test(all)) tags.push("kartoffeln");
   tags.push(COLD.test(m.strMeal) ? "kalt" : "warm");
+  if (/soup|stew|chowder|broth|ramen|pho\b|gazpacho/i.test(m.strMeal)) tags.push("suppe");
+  if (/salad/i.test(m.strMeal)) tags.push("salat");
   if (m.strCategory === "Breakfast") tags.push("fruehstueck");
   if (MAIN_CATS.includes(m.strCategory)) tags.push("hauptgericht");
   const steps = String(m.strInstructions || "").split(/\r?\n+/).map((s) => s.replace(/^\s*(step\s*\d+[:.)]?|\d+[.)])\s*/i, "").trim()).filter((s) => s.length > 3);
