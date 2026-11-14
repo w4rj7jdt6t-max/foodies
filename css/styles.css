@@ -320,7 +320,7 @@ body.modal-open { overflow: hidden; }
 .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .field > span { font-size: 13px; font-weight: 700; color: var(--ink-soft); padding-left: 4px; }
 .field-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 10px; }
-input[type="text"], input[type="number"], select, textarea, .rows input {
+input[type="text"], input[type="number"], input[type="email"], input[type="password"], select, textarea, .rows input {
   width: 100%; padding: 11px 14px; border-radius: var(--radius-sm);
   border: 1px solid var(--line); background: #fff; outline: none;
   transition: border-color .2s, box-shadow .2s;
@@ -388,6 +388,32 @@ input.invalid { border-color: var(--terracotta); box-shadow: 0 0 0 4px rgba(217,
 .simple-ing li { display: flex; gap: 10px; padding: 7px 2px; border-bottom: 1px dashed var(--line); }
 .simple-ing li:last-child { border-bottom: 0; }
 .origin-note { margin-top: 14px; font-size: 13px; color: var(--ink-soft); }
+
+/* ================= Anmeldung & Sync ================= */
+.site-header { position: relative; }
+.logout-btn {
+  position: absolute; top: 18px; right: max(16px, env(safe-area-inset-right, 0px));
+  padding: 6px 12px; border-radius: var(--pill); border: 1px solid var(--line);
+  background: rgba(255,253,249,.7); color: var(--ink-soft); font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.logout-btn:hover { background: #fff; color: var(--ink); }
+body.locked .tabs, body.locked main { display: none; }
+.login { display: grid; place-items: center; padding: 20px 16px 80px; }
+.login-card {
+  width: min(400px, 100%); display: flex; flex-direction: column; gap: 14px; text-align: center;
+  padding: 28px 24px; background: var(--paper); border: 1px solid var(--line); border-radius: 28px; box-shadow: var(--shadow-md);
+}
+.login-card h2 { margin: 0; font-family: var(--font-display); font-weight: 600; color: var(--mint-900); font-size: 26px; }
+.login-card p { margin: 0; }
+.login-card .field { text-align: left; }
+.login-emoji { font-size: 40px; }
+.login-error { color: #a4472a; background: var(--peach-soft); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 14px; font-weight: 600; }
+.banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 14px 16px; margin-bottom: 14px; border-radius: var(--radius);
+  background: linear-gradient(135deg, #fff8e8, var(--peach-soft)); border: 1px solid rgba(217,138,100,.2); font-weight: 600; font-size: 14.5px;
+}
+.banner-actions { display: flex; gap: 8px; }
 
 /* ================= Toast ================= */
 .toast {

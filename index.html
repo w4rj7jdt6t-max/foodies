@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=9" />
+  <link rel="stylesheet" href="css/styles.css?v=10" />
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -19,8 +19,22 @@
       <span class="brand-mark">🌿</span>
       <h1 class="brand-name">foodies</h1>
     </div>
-    <p class="brand-tag">Unsere kleine Küche – Rezepte, Pläne &amp; Ideen</p>
+    <p class="brand-tag">Unsere kleine Küche – Rezepte, Pläne &amp; Ideen<span id="sync-badge" hidden> · ☁️ gemeinsam</span></p>
+    <button type="button" class="logout-btn" id="btn-logout" hidden>Abmelden</button>
   </header>
+
+  <!-- ============ ANMELDUNG (nur mit gemeinsamer Sammlung) ============ -->
+  <section class="login" id="login" hidden>
+    <form class="login-card" id="login-form" novalidate>
+      <div class="login-emoji">🔐</div>
+      <h2>Willkommen zurück</h2>
+      <p class="muted">Meldet euch an, um eure gemeinsame Rezeptsammlung zu sehen.</p>
+      <label class="field"><span>E-Mail</span><input type="email" id="login-email" autocomplete="username" required /></label>
+      <label class="field"><span>Passwort</span><input type="password" id="login-password" autocomplete="current-password" required /></label>
+      <p class="login-error" id="login-error" hidden></p>
+      <button type="submit" class="btn btn-primary" id="login-submit">Anmelden</button>
+    </form>
+  </section>
 
   <nav class="tabs" role="tablist" aria-label="Bereiche">
     <button class="tab is-active" role="tab" data-tab="rezepte" aria-selected="true"><span class="tab-emoji">🍝</span>Rezepte</button>
@@ -63,6 +77,14 @@
             <button type="button" class="link-btn" id="filter-reset">Zurücksetzen</button>
           </div>
           <div class="tag-picker" id="filter-tags"></div>
+        </div>
+      </div>
+
+      <div class="banner" id="migrate-banner" hidden>
+        <span id="migrate-text"></span>
+        <div class="banner-actions">
+          <button type="button" class="btn btn-soft" id="migrate-no">Nein danke</button>
+          <button type="button" class="btn btn-primary" id="migrate-yes">Übernehmen</button>
         </div>
       </div>
 
@@ -219,9 +241,12 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="js/db.js?v=9"></script>
-  <script src="js/app.js?v=9"></script>
-  <script src="js/translate.js?v=9"></script>
-  <script src="js/inspiration.js?v=9"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="js/config.js?v=10"></script>
+  <script src="js/db.js?v=10"></script>
+  <script src="js/store.js?v=10"></script>
+  <script src="js/app.js?v=10"></script>
+  <script src="js/translate.js?v=10"></script>
+  <script src="js/inspiration.js?v=10"></script>
 </body>
 </html>

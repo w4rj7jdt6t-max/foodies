@@ -1,0 +1,40 @@
+-- ================= foodies – Datenbank einrichten =================
+-- In Supabase: SQL Editor → New query → alles einfügen → Run.
+-- Kann gefahrlos mehrfach ausgeführt werden.
+
+-- 1) Tabelle für Rezepte (das ganze Rezept liegt als JSON in „data“)
+create table if not exists public.recipes (
+  id          text primary key,
+  data        jsonb not null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+-- 2) Zugriff nur für angemeldete Personen (ihr beide)
+alter table public.recipes enable row level security;
+
+drop policy if exists "foodies lesen"     on public.recipes;
+drop policy if exists "foodies anlegen"   on public.recipes;
+drop policy if exists "foodies ändern"    on public.recipes;
+drop policy if exists "foodies löschen"   on public.recipes;
+create policy "foodies lesen"   on public.recipes for select to authenticated using (true);
+create policy "foodies anlegen" on public.recipes for insert to authenticated with check (true);
+create policy "foodies ändern"  on public.recipes for update to authenticated using (true) with check (true);
+create policy "foodies löschen" on public.recipes for delete to authenticated using (true);
+
+-- 3) Live-Aktualisierung auf allen Geräten
+do $$ begin
+  alter publication supabase_realtime add table public.recipes;
+exception when duplicate_object then null; end $$;
+
+-- 4) Speicher für Rezeptbilder (Bilder haben zufällige Namen und sind per Link abrufbar)
+insert into storage.buckets (id, name, public)
+values ('recipe-images', 'recipe-images', true)
+on conflict (id) do nothing;
+
+drop policy if exists "foodies bilder hochladen" on storage.objects;
+drop policy if exists "foodies bilder ändern"    on storage.objects;
+drop policy if exists "foodies bilder löschen"   on storage.objects;
+create policy "foodies bilder hochladen" on storage.objects for insert to authenticated with check (bucket_id = 'recipe-images');
+create policy "foodies bilder ändern"    on storage.objects for update to authenticated using (bucket_id = 'recipe-images');
+create policy "foodies bilder löschen"   on storage.objects for delete to authenticated using (bucket_id = 'recipe-images');

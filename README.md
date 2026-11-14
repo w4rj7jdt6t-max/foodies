@@ -15,4 +15,11 @@ und `http://localhost:8000` öffnen.
 - **🍝 Rezepte** – Liste, Detailansicht mit Portionsrechner, Vorlage zum Anlegen/Bearbeiten (Titel & Bild, Zutaten, Zubereitung, Tipps)
 - 🗓️ Kalender, 🥡 Reste, 🛒 Einkaufsliste, ✨ Inspiration – folgen
 
-Rezepte (inkl. Bilder) werden aktuell lokal im Browser gespeichert (IndexedDB).
+## Speicher
+- **Ohne Einstellungen:** Rezepte (inkl. Bilder) liegen nur lokal im Browser (IndexedDB).
+- **Gemeinsame Sammlung:** In `js/config.js` die Supabase-Projekt-URL und den `anon public`-Schlüssel
+  eintragen. Dann gibt es eine Anmeldung, und alle Geräte teilen dieselben Rezepte (live).
+  Die Datenbank wird einmalig mit `supabase/setup.sql` eingerichtet (SQL Editor → Run).
+
+## Hosting
+Netlify: Projekt aus GitHub importieren, Build-Befehl leer lassen, Verzeichnis `.` (steht in `netlify.toml`).

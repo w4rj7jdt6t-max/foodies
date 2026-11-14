@@ -377,7 +377,8 @@ $("#detail-content").addEventListener("click", async (e) => {
       btn._t = setTimeout(() => { btn.classList.remove("armed"); btn.textContent = "🗑️"; }, 3000);
       return;
     }
-    await DB.remove(state.current.id);
+    try { await Store.remove(state.current); }
+    catch (err) { console.error(err); return toast("Löschen fehlgeschlagen 😕"); }
     state.recipes = state.recipes.filter((r) => r.id !== state.current.id);
     closeModal($("#detail-modal"));
     renderList();
@@ -531,7 +532,7 @@ form.addEventListener("submit", async (e) => {
   const texts = (box) => [...box.querySelectorAll("textarea")].map((t) => t.value.trim()).filter(Boolean);
 
   const now = Date.now();
-  const recipe = {
+  let recipe = {
     id: state.editing?.id || uid(),
     createdAt: state.editing?.createdAt || now,
     updatedAt: now,
@@ -547,11 +548,17 @@ form.addEventListener("submit", async (e) => {
     tips: texts($("#tip-rows")),
   };
 
+  const saveBtn = form.querySelector('button[type="submit"]');
+  saveBtn.disabled = true;
+  saveBtn.textContent = "Speichere …";
   try {
-    await DB.put(recipe);
+    recipe = await Store.put(recipe, state.editing);
   } catch (err) {
     console.error(err);
-    return toast("Speichern fehlgeschlagen 😕");
+    return toast(Store.cloud ? "Speichern fehlgeschlagen – seid ihr online? 😕" : "Speichern fehlgeschlagen 😕");
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = "Rezept speichern";
   }
   const idx = state.recipes.findIndex((r) => r.id === recipe.id);
   if (idx >= 0) state.recipes[idx] = recipe; else state.recipes.push(recipe);
@@ -564,9 +571,96 @@ form.addEventListener("submit", async (e) => {
 });
 
 /* ================= Start ================= */
-(async function init() {
+async function loadRecipes() {
+  state.recipes = (await Store.all()).map(normalize);
+  if (state.current && !state.recipes.some((r) => r.id === state.current.id) && $("#detail-modal").open) closeModal($("#detail-modal"));
+  renderList();
+}
+
+/* --- Anmeldung (nur gemeinsame Sammlung) --- */
+function showLogin(show) {
+  document.body.classList.toggle("locked", show);
+  $("#login").hidden = !show;
+  $("#btn-logout").hidden = show || !Store.cloud;
+  $("#sync-badge").hidden = show || !Store.cloud;
+}
+$("#login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const err = $("#login-error"), btn = $("#login-submit");
+  err.hidden = true;
+  btn.disabled = true;
+  btn.textContent = "Melde an …";
   try {
-    state.recipes = (await DB.all()).map(normalize);
+    await Store.auth.signIn($("#login-email").value.trim(), $("#login-password").value);
+    $("#login-password").value = "";
+    showLogin(false);
+    await startCloud();
+  } catch (ex) {
+    err.textContent = /invalid/i.test(ex?.message || "") ? "E-Mail oder Passwort stimmt nicht." : "Anmelden hat nicht geklappt. Seid ihr online?";
+    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Anmelden";
+  }
+});
+$("#btn-logout").addEventListener("click", async () => {
+  await Store.auth.signOut();
+  state.recipes = [];
+  renderList();
+  showLogin(true);
+});
+
+/* --- Lokale Rezepte in die gemeinsame Sammlung übernehmen --- */
+async function offerMigration() {
+  try { if (localStorage.getItem("foodies-migrated") === "1") return; } catch {}
+  const cloudIds = new Set(state.recipes.map((r) => r.id));
+  const local = (await Store.localAll()).filter((r) => !cloudIds.has(r.id));
+  if (!local.length) return;
+  $("#migrate-text").textContent = local.length === 1
+    ? "Auf diesem Gerät liegt noch 1 Rezept, das nicht in eurer gemeinsamen Sammlung ist."
+    : `Auf diesem Gerät liegen noch ${local.length} Rezepte, die nicht in eurer gemeinsamen Sammlung sind.`;
+  $("#migrate-banner").hidden = false;
+  const done = () => { $("#migrate-banner").hidden = true; try { localStorage.setItem("foodies-migrated", "1"); } catch {} };
+  $("#migrate-no").onclick = done;
+  $("#migrate-yes").onclick = async () => {
+    $("#migrate-yes").disabled = true;
+    $("#migrate-yes").textContent = "Übertrage …";
+    let ok = 0;
+    for (const r of local) {
+      try { await Store.put(normalize(r)); ok++; } catch (err) { console.error(err); }
+    }
+    done();
+    await loadRecipes();
+    toast(ok === local.length ? `${ok} Rezepte übernommen ☁️` : `${ok} von ${local.length} Rezepten übernommen`);
+  };
+}
+
+let cloudStarted = false;
+async function startCloud() {
+  try {
+    await loadRecipes();
+  } catch (err) {
+    console.error(err);
+    return toast("Rezepte konnten nicht geladen werden – seid ihr online?");
+  }
+  if (!cloudStarted) {
+    cloudStarted = true;
+    Store.onChange(() => loadRecipes().catch(console.error)); // Änderungen vom anderen Gerät
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) loadRecipes().catch(() => {}); });
+  }
+  offerMigration();
+}
+
+(async function init() {
+  if (Store.cloud) {
+    renderList();
+    const session = await Store.auth.session().catch(() => null);
+    if (!session) return showLogin(true);
+    showLogin(false);
+    return startCloud();
+  }
+  try {
+    state.recipes = (await Store.all()).map(normalize);
     let seeded = false;
     try { seeded = localStorage.getItem("foodies-seeded") === "1"; } catch {}
     if (!state.recipes.length && !seeded) {
