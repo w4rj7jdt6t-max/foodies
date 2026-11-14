@@ -6,6 +6,7 @@ const Shop = (() => {
    * Einträge und eigene Zutaten liegen in derselben Tabelle;
    * eigene Zutaten erkennt man an kind: "custom". */
   let customs = [];
+  let extras = []; // weitere Einträge in derselben Tabelle, z. B. der Kühlschrank-Inhalt („Reste“)
   let lastSig = "";
   // Vergleich unabhängig von der Feldreihenfolge (die Datenbank sortiert JSON-Felder um)
   const signature = (list) => [...list].sort((a, b) => (a.id < b.id ? -1 : 1))
@@ -18,8 +19,10 @@ const Shop = (() => {
       if (sig === lastSig) return;
       lastSig = sig;
       customs = all.filter((i) => i.kind === "custom");
-      items = all.filter((i) => i.kind !== "custom");
+      extras = all.filter((i) => i.kind && i.kind !== "custom");
+      items = all.filter((i) => !i.kind);
       setCustomGroceries(customs);
+      if (typeof Reste !== "undefined") Reste.onData(extras);
       $("#shop-setup").hidden = true;
     } catch (err) {
       console.error(err);
@@ -32,7 +35,12 @@ const Shop = (() => {
     refreshRecipeButtons();
   }
 
-  const syncSig = () => { lastSig = signature([...customs, ...items]); };
+  const syncSig = () => { lastSig = signature([...customs, ...extras, ...items]); };
+  /** Zusatz-Eintrag (z. B. Kühlschrank) speichern, ohne die Liste neu zu zeichnen */
+  async function putExtra(doc) {
+    extras = [...extras.filter((x) => x.id !== doc.id), doc];
+    await save([doc]);
+  }
   async function save(list) {
     syncSig();
     try { await Store.shop.putMany(list); }
@@ -520,5 +528,19 @@ const Shop = (() => {
 
   $("#custom-modal").addEventListener("close", () => { onCustomSaved = null; });
 
-  return { load, toggleIngredient, addAll, onList, refreshRecipeButtons, openCustoms };
+  /** mehrere Zutaten eines Rezepts auf einmal (z. B. nur die fehlenden) */
+  async function addSome(recipe, idxs, factor) {
+    const added = idxs.filter((idx) => !onList(recipe.id, idx)).map((idx) => {
+      const ing = recipe.ingredients[idx];
+      return newItem({ name: ing.name, unit: ing.unit, amount: ing.amount == null ? null : ing.amount * factor, recipeId: recipe.id, recipeTitle: recipe.title, ingIndex: idx });
+    });
+    if (!added.length) return toast("Steht schon alles auf der Liste ✓");
+    items.push(...added);
+    render();
+    refreshRecipeButtons();
+    toast(`${added.length} ${added.length === 1 ? "Zutat" : "Zutaten"} auf die Einkaufsliste 🛒`);
+    await save(added);
+  }
+
+  return { load, toggleIngredient, addAll, addSome, onList, refreshRecipeButtons, openCustoms, putExtra };
 })();

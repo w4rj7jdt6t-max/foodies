@@ -231,3 +231,30 @@ const isKnownGrocery = (name) => {
 };
 
 const EMOJI_CHOICES = ["🥒","🍅","🧅","🧄","🥔","🥕","🫑","🌶️","🥦","🥬","🍄","🌽","🍆","🥑","🍋","🍎","🍏","🍌","🍐","🍊","🍓","🫐","🍇","🥝","🥭","🍍","🍒","🍑","🍉","🥥","🫚","🎃","🫛","🌿","🥛","🧈","🧀","🥚","🍗","🥩","🥓","🍖","🌭","🐟","🦐","🍤","🍝","🍚","🌾","🍞","🥖","🥐","🥯","🫓","🌮","🍕","🍔","🍟","🥫","🫘","🥜","🌰","🍯","🧂","🫒","🍶","🥣","🍫","🍪","🍰","🧁","🍬","🍿","🥨","🍨","🧊","💧","🧃","🥤","🍺","🍷","🥂","☕","🍵","🧋","🧻","🧽","🧴","🧼","🪥","🧺","🗑️","🔋","🕯️","🐾","💐","🛒"];
+
+/* ================= Zutaten vergleichen (für „Reste“) =================
+ * Jede Zutat bekommt einen Vergleichsschlüssel: der längste bekannte Begriff darin,
+ * auf die Einzahl gekürzt. So passen „Zwiebeln“ ↔ „Zwiebel“, „Knoblauchzehe“ ↔ „Knoblauch“,
+ * aber NICHT „Paprika“ ↔ „Paprikapulver“ oder „Tomaten“ ↔ „gehackte Tomaten“.
+ */
+const stem = (w) => w.replace(/(chen|en|n|e|s)$/, "").replace(/ä/g, "a").replace(/ö/g, "o").replace(/ü/g, "u");
+const KEY_ALIASES = { "eier": "ei", "knoblauchzehe": "knoblauch", "knoblauchzehen": "knoblauch", "hähnchenbrustfilet": "hähnchen", "hähnchenbrust": "hähnchen", "hähnchenschenkel": "hähnchen", "hähnchenkeulen": "hähnchen", "kirschtomaten": "tomaten", "kirschtomate": "tomaten", "cherrytomaten": "tomaten", "cocktailtomaten": "tomaten", "rispentomate": "tomaten", "salatgurke": "gurke", "hühnchen": "hähnchen", "huhn": "hähnchen", "möhre": "karotte", "möhren": "karotte", "porree": "lauch", "rinderhack": "hackfleisch", "gemischtes hack": "hackfleisch", "hack": "hackfleisch", "schlagsahne": "sahne", "kochsahne": "sahne", "parmesan": "parmesan", "spaghetti": "spaghetti" };
+function ingredientKey(name) {
+  const c = findCustom(name);
+  if (c) return "c:" + stem(c.name.toLowerCase());
+  const n = " " + String(name || "").toLowerCase().replace(/\([^)]*\)/g, " ").replace(/[,.;:/]/g, " ").replace(/\s+/g, " ").trim() + " ";
+  let hit = null;
+  for (const e of GROCERY_INDEX) {
+    if (e.k.length < 3 || SUGGEST_SKIP.has(e.k) && e.k !== "ei") continue;
+    const i = n.indexOf(e.k);
+    if (i < 0) continue;
+    const before = n[i - 1], after = n[i + e.k.length];
+    if (before === " " && (after === " " || /[nse]/.test(after) || e.k.length >= 5)) { hit = e.k; break; }
+    if (e.k.length >= 6) { hit = e.k; break; }
+  }
+  if (!hit && /\beier?\b/.test(n)) hit = "ei";
+  const base = hit || n.trim();
+  return stem(KEY_ALIASES[base] || base);
+}
+const STAPLE_KEYS = new Set(["salz", "pfeffer", "wasser", "öl", "olivenöl", "sonnenblumenöl", "rapsöl", "pflanzenöl", "zucker", "meersalz"].map((k) => stem(k)));
+const isStaple = (name) => STAPLE_KEYS.has(ingredientKey(name)) || /^\s*(salz|pfeffer|wasser)\b/i.test(name);

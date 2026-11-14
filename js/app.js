@@ -276,6 +276,7 @@ function renderList() {
     </button></li>`;
   }).join("") : `<li class="muted" style="text-align:center;padding:24px">Nichts gefunden 🤔</li>`;
   if (typeof Plan !== "undefined") Plan.render(); // Titel/Bilder im Kalender aktuell halten
+  if (typeof Reste !== "undefined" && $("#panel-reste").classList.contains("is-active")) Reste.render();
 }
 
 $("#recipe-list").addEventListener("click", (e) => {

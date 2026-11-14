@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=21" />
+  <link rel="stylesheet" href="css/styles.css?v=22" />
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -109,7 +109,59 @@
       </div>
       <div class="week" id="week"></div>
     </section>
-    <section class="panel" id="panel-reste" role="tabpanel"><div class="soon"><div class="soon-emoji">🥡</div><h2>Reste</h2><p class="muted">Was ist noch im Kühlschrank? Kommt bald.</p></div></section>
+    <!-- ============ RESTE ============ -->
+    <section class="panel" id="panel-reste" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <h2>Was ist noch da?</h2>
+          <p class="muted" id="rest-count">Wählt aus, was im Kühlschrank ist – wir finden passende Rezepte.</p>
+        </div>
+      </div>
+
+      <div class="rest-box">
+        <div class="shop-adder rest-adder">
+          <form class="shop-add" id="rest-form" autocomplete="off">
+            <span class="shop-add-icon" aria-hidden="true">🔎</span>
+            <input type="text" id="rest-input" placeholder="Zutat suchen, z. B. Zucchini" aria-label="Zutat suchen" />
+            <button type="submit" class="btn btn-primary shop-add-btn" aria-label="Hinzufügen">＋</button>
+          </form>
+          <ul class="shop-suggest" id="rest-suggest" role="listbox" hidden></ul>
+        </div>
+
+        <div class="rest-have" id="rest-have-wrap" hidden>
+          <div class="rest-sub-head"><h3>🧊 Im Kühlschrank</h3><button type="button" class="link-btn" id="rest-clear">Alles leeren</button></div>
+          <div class="rest-chips" id="rest-have"></div>
+        </div>
+
+        <details class="rest-quick" id="rest-quick-wrap" open>
+          <summary>Schnell auswählen <span class="muted">– Zutaten aus euren Rezepten</span></summary>
+          <div class="rest-chips" id="rest-quick"></div>
+        </details>
+
+        <label class="rest-staples"><input type="checkbox" id="rest-staples" checked /> Grundzutaten (Salz, Pfeffer, Öl, Zucker, Wasser) sind immer da</label>
+      </div>
+
+      <div class="subtabs" role="tablist" aria-label="Kochen oder Backen">
+        <button class="subtab rest-type is-active" role="tab" data-type="kochen" aria-selected="true"><span class="tab-emoji">🍳</span>Kochen</button>
+        <button class="subtab rest-type" role="tab" data-type="backen" aria-selected="false"><span class="tab-emoji">🧁</span>Backen</button>
+      </div>
+      <div class="toolbar">
+        <div class="filter-row">
+          <button type="button" class="filter-btn" id="rest-filter-btn" aria-expanded="false" aria-controls="rest-filter-panel">
+            <span aria-hidden="true">🎛️</span> Filter <span class="filter-badge" id="rest-filter-badge" hidden></span>
+          </button>
+        </div>
+        <div class="filter-panel" id="rest-filter-panel" hidden>
+          <div class="filter-panel-head">
+            <strong>Genauer filtern</strong>
+            <button type="button" class="link-btn" id="rest-filter-reset">Zurücksetzen</button>
+          </div>
+          <div class="tag-picker" id="rest-filter-tags"></div>
+        </div>
+      </div>
+
+      <div id="rest-results"></div>
+    </section>
     <!-- ============ EINKAUFSLISTE ============ -->
     <section class="panel" id="panel-einkauf" role="tabpanel">
       <div class="panel-head">
@@ -261,6 +313,11 @@
     <div class="modal-inner" id="plan-meal-content"></div>
   </dialog>
 
+  <!-- ============ RESTE: REZEPT ============ -->
+  <dialog class="modal modal-sm" id="rest-modal">
+    <div class="modal-inner" id="rest-modal-content"></div>
+  </dialog>
+
   <!-- ============ EIGENE ZUTATEN ============ -->
   <dialog class="modal modal-sm" id="custom-modal">
     <div class="modal-inner">
@@ -385,14 +442,15 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="js/config.js?v=21"></script>
-  <script src="js/db.js?v=21"></script>
-  <script src="js/store.js?v=21"></script>
-  <script src="js/app.js?v=21"></script>
-  <script src="js/groceries.js?v=21"></script>
-  <script src="js/shopping.js?v=21"></script>
-  <script src="js/calendar.js?v=21"></script>
-  <script src="js/translate.js?v=21"></script>
-  <script src="js/inspiration.js?v=21"></script>
+  <script src="js/config.js?v=22"></script>
+  <script src="js/db.js?v=22"></script>
+  <script src="js/store.js?v=22"></script>
+  <script src="js/app.js?v=22"></script>
+  <script src="js/groceries.js?v=22"></script>
+  <script src="js/shopping.js?v=22"></script>
+  <script src="js/calendar.js?v=22"></script>
+  <script src="js/reste.js?v=22"></script>
+  <script src="js/translate.js?v=22"></script>
+  <script src="js/inspiration.js?v=22"></script>
 </body>
 </html>

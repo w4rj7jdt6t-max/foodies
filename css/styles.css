@@ -631,6 +631,57 @@ body.locked .tabs, body.locked main { display: none; }
 .meal-remove.armed { background: var(--terracotta); color: #fff; }
 .plan-btn { margin: -8px 0 18px; }
 
+/* ================= Reste ================= */
+.rest-box { display: flex; flex-direction: column; gap: 14px; margin-bottom: 22px; padding: 16px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+.rest-box .shop-add { margin: 0; box-shadow: none; background: var(--cream); }
+.rest-sub-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.rest-sub-head h3, .rest-quick summary { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 17px; color: var(--mint-900); }
+.rest-quick summary { cursor: pointer; list-style: none; margin-bottom: 8px; }
+.rest-quick summary::-webkit-details-marker { display: none; }
+.rest-quick summary::before { content: "▸ "; color: var(--mint-500); }
+.rest-quick[open] summary::before { content: "▾ "; }
+.rest-quick summary .muted { font-family: var(--font-body); font-size: 13px; font-weight: 500; }
+.rest-chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 260px; overflow-y: auto; }
+.rest-have .rest-chips { max-height: none; }
+.rchip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 8px; border-radius: var(--pill);
+  border: 1px solid var(--line); background: #fff; font-size: 14px; font-weight: 700; color: var(--ink); cursor: pointer; transition: all .15s;
+}
+.rchip span { font-size: 16px; }
+.rchip:hover { border-color: var(--mint-300); background: var(--mint-50); }
+.rchip.is-on { background: var(--mint-100); border-color: var(--mint-500); color: var(--mint-900); }
+.rchip.is-on i { font-style: normal; font-size: 11px; color: var(--mint-700); margin-left: 2px; }
+.rest-none { margin: 4px 2px; font-size: 13.5px; }
+.rest-staples { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-soft); cursor: pointer; }
+.rest-staples input { width: 18px; height: 18px; accent-color: var(--mint-700); }
+
+.rest-group { margin-bottom: 20px; }
+.rest-group-head { display: flex; align-items: center; gap: 8px; margin: 0 0 8px 4px; font-family: var(--font-display); font-weight: 600; font-size: 19px; color: var(--mint-900); }
+.rest-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.rest-card {
+  display: flex; align-items: center; gap: 14px; width: 100%; padding: 8px 14px 8px 8px; text-align: left; cursor: pointer;
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); transition: transform .2s, box-shadow .2s;
+}
+.rest-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.g-all .rest-card { border-color: var(--mint-300); background: linear-gradient(135deg, #fff, var(--mint-50)); }
+.rest-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.rest-info .bar-title { white-space: normal; }
+.rest-progress { height: 6px; border-radius: 6px; background: var(--cream-2); overflow: hidden; }
+.rest-progress span { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--mint-300), var(--mint-700)); }
+.g-some .rest-progress span { background: linear-gradient(90deg, var(--honey), var(--peach)); }
+.rest-stat { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+.rest-missing { font-size: 13px; color: #b5452a; }
+.rest-missing b { font-weight: 800; }
+.rest-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.rest-ings li { align-items: center; }
+.rest-mark { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 900; }
+.rest-ings .is-have .rest-mark { background: var(--mint-100); color: var(--mint-700); }
+.rest-ings .is-missing .rest-mark { background: #fbe0d6; color: #b5452a; }
+.rest-ings .is-missing .ing-name, .rest-ings .is-missing .ing-amt { color: #b5452a; }
+.rest-ings .is-missing small { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 6px; background: #fbe0d6; }
+.rest-ings .ing-amt { min-width: 64px; }
+.rest-buy { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+
 /* Warenkorb-Knopf in der Rezeptansicht */
 .ing-list li { align-items: center; }
 .ing-name { flex: 1; min-width: 0; }
@@ -702,6 +753,9 @@ body.locked .tabs, body.locked main { display: none; }
   .qty-actions .btn-primary { max-width: none; }
   .custom-body { padding: 4px 14px 24px; }
   .pick-body { padding: 4px 14px 24px; }
+  .rest-box { padding: 12px; }
+  .rest-chips { max-height: 210px; }
+  .rest-actions .btn { flex: 1; }
   /* Kalender auf dem Handy: kompakte Zellen, Mahlzeiten nur als Emoji */
   .cal { padding: 12px 8px 10px; }
   .cal-weekdays, .cal-row { gap: 4px; }
