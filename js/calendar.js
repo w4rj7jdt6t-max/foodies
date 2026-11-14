@@ -6,29 +6,42 @@ const Plan = (() => {
   let lastSig = "";
   const DAYS = 7;
 
-  /* ---------- Datum ---------- */
+  /* ---------- Datum ----------
+   * Sichtbar: aktuelle Kalenderwoche (Mo–So) + die nächste Kalenderwoche.
+   * Vergangene Tage werden grau gezeigt, planen kann man ab heute. */
   const pad = (n) => String(n).padStart(2, "0");
   const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  function days() {
-    const out = [], t = new Date();
-    for (let i = 0; i < DAYS; i++) {
-      const d = new Date(t.getFullYear(), t.getMonth(), t.getDate() + i);
-      out.push({ key: ymd(d), date: d, offset: i });
+  function range() {
+    const t = new Date(), today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+    const monday = new Date(today); monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+    const out = [];
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
+      const offset = Math.round((d - today) / 86400000);
+      out.push({ key: ymd(d), date: d, offset, past: offset < 0 });
     }
     return out;
   }
+  const days = () => range().filter((d) => !d.past); // planbare Tage
+  function isoWeek(d) {
+    const x = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    x.setUTCDate(x.getUTCDate() + 4 - (x.getUTCDay() || 7));
+    return Math.ceil(((x - new Date(Date.UTC(x.getUTCFullYear(), 0, 1))) / 86400000 + 1) / 7);
+  }
   function dayLabel(day) {
     const wd = day.date.toLocaleDateString("de-DE", { weekday: "long" });
-    const dm = day.date.toLocaleDateString("de-DE", { day: "numeric", month: "numeric" }) ;
-    return { main: day.offset === 0 ? "Heute" : day.offset === 1 ? "Morgen" : wd, sub: day.offset < 2 ? `${wd}, ${dm}` : dm };
+    const dm = day.date.toLocaleDateString("de-DE", { day: "numeric", month: "numeric" });
+    return { main: day.offset === 0 ? "Heute" : day.offset === 1 ? "Morgen" : wd, sub: day.offset === 0 || day.offset === 1 ? `${wd}, ${dm}` : dm };
   }
+  const longDate = (d) => d.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
   const labelForKey = (key) => {
-    const d = days().find((x) => x.key === key);
+    const d = range().find((x) => x.key === key);
     if (d) return dayLabel(d).main;
     const [y, m, dd] = key.split("-").map(Number);
     return new Date(y, m - 1, dd).toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "numeric" });
   };
   const recipeOf = (e) => state.recipes.find((r) => r.id === e.recipeId);
+  let selected = null; // ausgewählter Tag im Kalender
 
   /* ---------- Laden & Speichern ---------- */
   const signature = (list) => [...list].sort((a, b) => (a.id < b.id ? -1 : 1)).map((o) => JSON.stringify(o, Object.keys(o).sort())).join("\n");
@@ -59,35 +72,70 @@ const Plan = (() => {
     catch (err) { console.error(err); toast("Löschen fehlgeschlagen 😕"); }
   }
 
-  /* ---------- Wochenansicht ---------- */
+  /* ---------- Kalenderansicht ---------- */
   function mealThumb(r, cls = "plan-thumb") {
     if (r?.image) return `<span class="${cls}"><img src="${esc(r.image)}" alt="" loading="lazy" width="48" height="48" /></span>`;
     return `<span class="${cls} ${r ? phClass(r) : "ph-0"}">${r ? recipeEmoji(r) : "🍽️"}</span>`;
   }
+  const mealsOn = (key) => entries.filter((e) => e.date === key).sort((a, b) => a.createdAt - b.createdAt);
+
+  function mealListHTML(key, { canAdd = true } = {}) {
+    const meals = mealsOn(key);
+    return `<ul class="day-meals">${meals.map((e) => {
+        const r = recipeOf(e);
+        return `<li><button type="button" class="meal" data-id="${e.id}">
+          ${mealThumb(r)}
+          <span class="meal-text"><span class="meal-title">${esc(r?.title || e.recipeTitle)}</span>
+          <span class="meal-sub">${r ? `👥 ${e.servings} ${e.servings === 1 ? "Portion" : "Portionen"}` : "Rezept wurde gelöscht"}</span></span>
+          <span class="bar-chevron" aria-hidden="true">›</span>
+        </button></li>`;
+      }).join("")}</ul>
+      ${!meals.length && !canAdd ? `<p class="muted day-none">An diesem Tag war nichts geplant.</p>` : ""}
+      ${canAdd ? `<button type="button" class="day-add" data-date="${key}">＋ Mahlzeit</button>` : ""}`;
+  }
+
   function render() {
     const y = window.scrollY;
-    const ds = days(), keys = new Set(ds.map((d) => d.key));
-    const upcoming = entries.filter((e) => keys.has(e.date));
+    const all = range(), today = all.find((d) => d.offset === 0);
+    if (!selected || !all.some((d) => d.key === selected) || selected === today.key) selected = all.find((d) => d.offset === 1).key;
+    const upcoming = entries.filter((e) => days().some((d) => d.key === e.date));
     $("#plan-count").textContent = upcoming.length
-      ? `${upcoming.length} ${upcoming.length === 1 ? "Mahlzeit" : "Mahlzeiten"} in den nächsten 7 Tagen geplant`
-      : "Noch nichts geplant – worauf habt ihr diese Woche Lust?";
-    $("#week").innerHTML = ds.map((d) => {
-      const l = dayLabel(d);
-      const meals = entries.filter((e) => e.date === d.key).sort((a, b) => a.createdAt - b.createdAt);
-      return `<section class="day ${d.offset === 0 ? "is-today" : ""}" data-date="${d.key}">
-        <header class="day-head"><strong>${esc(l.main)}</strong><span>${esc(l.sub)}</span></header>
-        <ul class="day-meals">${meals.map((e) => {
+      ? `${upcoming.length} ${upcoming.length === 1 ? "Mahlzeit" : "Mahlzeiten"} geplant`
+      : "Noch nichts geplant – worauf habt ihr Lust?";
+
+    const weeks = [all.slice(0, 7), all.slice(7)];
+    const cell = (d) => {
+      const meals = mealsOn(d.key);
+      const firstOfMonth = d.date.getDate() === 1;
+      const num = firstOfMonth || d === all[0] ? d.date.toLocaleDateString("de-DE", { day: "numeric", month: "short" }).replace(".", "") : d.date.getDate();
+      return `<button type="button" class="cal-cell ${d.past ? "is-past" : ""} ${d.offset === 0 ? "is-today" : ""} ${d.key === selected ? "is-selected" : ""}"
+          data-date="${d.key}" aria-label="${esc(longDate(d.date))}${meals.length ? `, ${meals.length} geplant` : ""}" aria-pressed="${d.key === selected}">
+        <span class="cal-num">${esc(String(num))}</span>
+        <span class="cal-meals">${meals.slice(0, 3).map((e) => {
           const r = recipeOf(e);
-          return `<li><button type="button" class="meal" data-id="${e.id}">
-            ${mealThumb(r)}
-            <span class="meal-text"><span class="meal-title">${esc(r?.title || e.recipeTitle)}</span>
-            <span class="meal-sub">${r ? `👥 ${e.servings} ${e.servings === 1 ? "Portion" : "Portionen"}` : "Rezept wurde gelöscht"}</span></span>
-            <span class="bar-chevron" aria-hidden="true">›</span>
-          </button></li>`;
-        }).join("")}</ul>
-        <button type="button" class="day-add" data-date="${d.key}">＋ Mahlzeit</button>
+          return `<span class="cal-meal"><span class="cal-meal-emoji">${r ? recipeEmoji(r) : "🍽️"}</span><span class="cal-meal-title">${esc(r?.title || e.recipeTitle)}</span></span>`;
+        }).join("")}${meals.length > 3 ? `<span class="cal-more">+${meals.length - 3}</span>` : ""}</span>
+      </button>`;
+    };
+    const sel = all.find((d) => d.key === selected);
+
+    $("#week").innerHTML = `
+      <section class="day today-card is-today" data-date="${today.key}">
+        <header class="day-head"><strong>Heute</strong><span>${esc(longDate(today.date))}</span></header>
+        ${mealListHTML(today.key)}
+      </section>
+
+      <div class="cal" role="grid" aria-label="Kalender">
+        <div class="cal-weekdays" aria-hidden="true">${["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((w, i) => `<span class="${i > 4 ? "is-weekend" : ""}">${w}</span>`).join("")}</div>
+        ${weeks.map((w, i) => `
+          <div class="cal-kw">KW ${isoWeek(w[0].date)} · ${i === 0 ? "diese Woche" : "nächste Woche"}</div>
+          <div class="cal-row" role="row">${w.map(cell).join("")}</div>`).join("")}
+      </div>
+
+      <section class="day day-panel ${sel.past ? "is-past" : ""}" data-date="${sel.key}">
+        <header class="day-head"><strong>${esc(dayLabel(sel).main)}</strong><span>${esc(sel.offset === 1 ? dayLabel(sel).sub : sel.date.toLocaleDateString("de-DE", { day: "numeric", month: "long" }))}</span></header>
+        ${mealListHTML(sel.key, { canAdd: !sel.past })}
       </section>`;
-    }).join("");
     if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
   }
 
@@ -95,12 +143,23 @@ const Plan = (() => {
     const add = e.target.closest(".day-add");
     if (add) return openPicker(add.dataset.date);
     const meal = e.target.closest(".meal");
-    if (meal) openMeal(meal.dataset.id);
+    if (meal) return openMeal(meal.dataset.id);
+    const c = e.target.closest(".cal-cell");
+    if (c) {
+      const isToday = c.classList.contains("is-today");
+      if (isToday) { $(".today-card").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+      selected = c.dataset.date;
+      render();
+      const panel = $(".day-panel");
+      const rect = panel.getBoundingClientRect();
+      if (rect.bottom > window.innerHeight) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   });
 
   async function addEntry(date, recipe) {
     const entry = { id: uid(), date, recipeId: recipe.id, recipeTitle: recipe.title, servings: recipe.servings || 2, createdAt: Date.now() };
     entries.push(entry);
+    selected = date;
     render();
     toast(`${recipeEmoji(recipe)} ${recipe.title} → ${labelForKey(date)}`);
     await save([entry]);
@@ -169,7 +228,9 @@ const Plan = (() => {
   }
   function renderMeal() {
     const e = current, r = recipeOf(e);
-    const others = days().map((d) => `<option value="${d.key}" ${d.key === e.date ? "selected" : ""}>${esc(dayLabel(d).main)} · ${esc(d.date.toLocaleDateString("de-DE", { day: "numeric", month: "numeric" }))}</option>`).join("");
+    const opts = days();
+    if (!opts.some((d) => d.key === e.date)) { const [yy, mm, dd] = e.date.split("-").map(Number); opts.unshift({ key: e.date, date: new Date(yy, mm - 1, dd), offset: -1 }); }
+    const others = opts.map((d) => `<option value="${d.key}" ${d.key === e.date ? "selected" : ""}>${esc(d.offset < 0 ? d.date.toLocaleDateString("de-DE", { weekday: "long" }) : dayLabel(d).main)} · ${esc(d.date.toLocaleDateString("de-DE", { day: "numeric", month: "numeric" }))}</option>`).join("");
     const factor = r ? e.servings / r.servings : 1;
     $("#plan-meal-content").innerHTML = `
       <div class="modal-top">
@@ -254,6 +315,7 @@ const Plan = (() => {
   $("#plan-meal-content").addEventListener("change", async (ev) => {
     if (ev.target.dataset.pact !== "move") return;
     current.date = ev.target.value;
+    selected = current.date;
     ev.target.blur();
     renderMeal();
     render();
