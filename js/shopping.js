@@ -371,20 +371,78 @@ const Shop = (() => {
       renderCounts();
       await save([item]);
     } else if (act === "delete") {
+      e.target.closest("[data-act]").blur();
       items = items.filter((i) => i !== item);
-      render();
+      removeLi(li, true);
       refreshRecipeButtons();
       await drop([item.id]);
     }
   });
   $("#shop-sections").addEventListener("change", async (e) => {
     if (e.target.dataset.act !== "move") return;
-    const item = items.find((i) => i.id === e.target.closest(".shop-item").dataset.id);
-    item.cat = e.target.value;
-    render();
-    toast(`Verschoben nach ${shopCatById(item.cat).label}`);
+    const sel = e.target, li = sel.closest(".shop-item");
+    const item = items.find((i) => i.id === li.dataset.id);
+    sel.blur(); // sonst scrollt Safari nach dem Schließen der Auswahl zum (verschobenen) Feld
+    item.cat = sel.value;
+    // Ansicht an dem Element verankern, das jetzt an der Stelle des Eintrags steht
+    const anchor = li.nextElementSibling || li.closest(".shop-cat").nextElementSibling || li.previousElementSibling;
+    keepInPlace(anchor, () => {
+      removeLi(li, false);
+      insertLi(item);
+    });
+    toast(`${item.emoji} ${item.name} → ${shopCatById(item.cat).label}`);
     await save([item]);
   });
+
+  /* ---------- Gezielte Änderungen statt Neuzeichnen (nichts springt) ---------- */
+  function keepInPlace(anchor, fn) {
+    const before = anchor && anchor.isConnected ? anchor.getBoundingClientRect().top : null;
+    const y = window.scrollY;
+    fn();
+    if (before != null && anchor.isConnected) window.scrollBy(0, anchor.getBoundingClientRect().top - before);
+    else if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
+  }
+  function removeLi(li, animate) {
+    const sec = li.closest(".shop-cat");
+    const finish = () => {
+      li.remove();
+      if (sec && !sec.querySelector(".shop-item")) sec.remove();
+      renderCounts();
+    };
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!animate || reduce || !li.animate) return finish();
+    li.style.pointerEvents = "none";
+    li.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateX(24px)" }], { duration: 160, easing: "ease-in" }).onfinish = () => {
+      li.style.opacity = "0";
+      const h = li.offsetHeight;
+      li.animate([{ height: h + "px", marginBottom: "0px" }, { height: "0px", marginBottom: "-6px" }], { duration: 160, easing: "ease-out" }).onfinish = finish;
+    };
+  }
+  function sectionFor(cat) {
+    let sec = $(`#shop-sections .shop-cat[data-cat="${cat}"]`);
+    if (sec) return sec;
+    const c = shopCatById(cat);
+    const tpl = document.createElement("template");
+    tpl.innerHTML = `<section class="shop-cat" data-cat="${c.id}">
+        <h3 class="shop-cat-head"><span class="shop-cat-emoji">${c.emoji}</span>${esc(c.label)}<span class="shop-cat-count"></span></h3>
+        <ul class="shop-list"></ul></section>`;
+    sec = tpl.content.firstElementChild;
+    // in der festen Kategorien-Reihenfolge einsortieren
+    const order = SHOP_CATS.map((x) => x.id);
+    const next = [...document.querySelectorAll("#shop-sections .shop-cat")].find((s) => order.indexOf(s.dataset.cat) > order.indexOf(cat));
+    $("#shop-sections").insertBefore(sec, next || null);
+    return sec;
+  }
+  function insertLi(item) {
+    const ul = sectionFor(item.cat).querySelector(".shop-list");
+    const tpl = document.createElement("template");
+    tpl.innerHTML = itemHTML(item).trim();
+    const li = tpl.content.firstElementChild;
+    const next = [...ul.children].find((el) => (items.find((i) => i.id === el.dataset.id)?.createdAt ?? 0) > item.createdAt);
+    ul.insertBefore(li, next || null);
+    renderCounts();
+    return li;
+  }
 
   $("#shop-clear-done").addEventListener("click", async () => {
     const ids = items.filter((i) => i.checked).map((i) => i.id);
