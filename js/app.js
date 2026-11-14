@@ -186,7 +186,7 @@ $("#category-chips").addEventListener("click", (e) => {
 
 function thumbHTML(r, cls = "thumb") {
   return r.image
-    ? `<div class="${cls}"><img src="${r.image}" alt="" loading="lazy" /></div>`
+    ? `<div class="${cls}"><img src="${r.image}" alt="" loading="lazy" width="64" height="64" /></div>`
     : `<div class="${cls} ${phClass(r)}">${catById(r.category).emoji}</div>`;
 }
 

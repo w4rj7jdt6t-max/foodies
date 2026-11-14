@@ -50,7 +50,7 @@ function moreLinks(q) {
 
 function ideaImg(idea) {
   return idea.image
-    ? `<div class="idea-img"><img src="${esc(idea.image)}" alt="" loading="lazy" /></div>`
+    ? `<div class="idea-img"><img src="${esc(idea.image)}" alt="" loading="lazy" width="400" height="300" /></div>`
     : `<div class="idea-img ${phClass({ title: idea.title })}">${esc(idea.emoji || catById(idea.category).emoji)}</div>`;
 }
 
