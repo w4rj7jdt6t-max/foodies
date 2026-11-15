@@ -40,12 +40,28 @@ const Plan = (() => {
     const [y, m, dd] = key.split("-").map(Number);
     return new Date(y, m - 1, dd).toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "numeric" });
   };
-  const recipeOf = (e) => state.recipes.find((r) => r.id === e.recipeId);
+  // Rezept eines Eintrags: aus diesem Haushalt, aus einem anderen eigenen Haushalt oder die gespeicherte Kopie
+  let others = []; // Rezepte aus meinen ANDEREN Haushalten: [{ ...rezept, _from: "Name" }]
+  const recipeOf = (e) => state.recipes.find((r) => r.id === e.recipeId) || others.find((r) => r.id === e.recipeId) || (e.snapshot ? { ...e.snapshot, id: e.recipeId } : null);
+  const isOwn = (e) => state.recipes.some((r) => r.id === e.recipeId);
+
+  async function loadOthers() {
+    const mine = typeof Household !== "undefined" ? Household.mine : [];
+    const cur = Store.households.current;
+    const ids = mine.map((h) => h.id).filter((id) => id !== cur);
+    if (!ids.length) { others = []; return; }
+    try {
+      const list = await Store.households.recipesOf(ids);
+      const names = Object.fromEntries(mine.map((h) => [h.id, h.name]));
+      others = list.map((x) => ({ ...normalize(x.data), _from: names[x.household_id] || "anderer Haushalt" }));
+    } catch (err) { console.error(err); others = []; }
+  }
   let selected = null; // ausgewählter Tag im Kalender
 
   /* ---------- Laden & Speichern ---------- */
   const signature = (list) => [...list].sort((a, b) => (a.id < b.id ? -1 : 1)).map((o) => JSON.stringify(o, Object.keys(o).sort())).join("\n");
   async function load() {
+    loadOthers().then(() => render());
     try {
       const all = await Store.plan.all();
       $("#plan-setup").hidden = true;
@@ -86,7 +102,7 @@ const Plan = (() => {
         return `<li><button type="button" class="meal" data-id="${e.id}">
           ${mealThumb(r)}
           <span class="meal-text"><span class="meal-title">${esc(r?.title || e.recipeTitle)}</span>
-          <span class="meal-sub">${r ? `👥 ${e.servings} ${e.servings === 1 ? "Portion" : "Portionen"}` : "Rezept wurde gelöscht"}</span></span>
+          <span class="meal-sub">${r ? `👥 ${e.servings} ${e.servings === 1 ? "Portion" : "Portionen"}${!isOwn(e) && e.fromHousehold ? ` · aus „${esc(e.fromHousehold)}“` : ""}` : "Rezept wurde gelöscht"}</span></span>
           <span class="bar-chevron" aria-hidden="true">›</span>
         </button></li>`;
       }).join("")}</ul>
@@ -145,6 +161,13 @@ const Plan = (() => {
 
   async function addEntry(date, recipe) {
     const entry = { id: uid(), date, recipeId: recipe.id, recipeTitle: recipe.title, servings: recipe.servings || 2, createdAt: Date.now() };
+    // Rezept aus einem anderen Haushalt → Kopie mitspeichern, damit die Mitglieder HIER es sehen
+    // (ohne Zugriff auf den anderen Haushalt zu bekommen)
+    if (!state.recipes.some((r) => r.id === recipe.id)) {
+      const { _from, imagePath, imageAuto, imageCredit, autoImageCheckedAt, ...snap } = recipe;
+      entry.snapshot = snap;
+      entry.fromHousehold = _from || "";
+    }
     entries.push(entry);
     selected = date;
     render();
@@ -180,22 +203,30 @@ const Plan = (() => {
   });
   function renderPicker() {
     const q = $("#plan-pick-search").value.trim().toLowerCase();
-    const list = [...state.recipes]
-      .filter((r) => !q || r.title.toLowerCase().includes(q) || r.ingredients.some((i) => i.name.toLowerCase().includes(q)))
-      .sort((a, b) => a.title.localeCompare(b.title, "de"));
-    $("#plan-pick-list").innerHTML = list.length ? list.map((r) => `<li><button type="button" class="pick-item" data-id="${r.id}">
+    const match = (r) => !q || r.title.toLowerCase().includes(q) || r.ingredients.some((i) => i.name.toLowerCase().includes(q));
+    const sort = (a, b) => a.title.localeCompare(b.title, "de");
+    const item = (r, src) => `<li><button type="button" class="pick-item" data-id="${r.id}" data-src="${src}">
         ${mealThumb(r)}
         <span class="meal-text"><span class="meal-title">${esc(r.title)}</span>
-        <span class="meal-sub">${TYPES[r.type].emoji} ${TYPES[r.type].label}${r.time ? ` · ⏱️ ${r.time} Min.` : ""}</span></span>
+        <span class="meal-sub">${TYPES[r.type]?.emoji || ""} ${TYPES[r.type]?.label || ""}${r.time ? ` · ⏱️ ${r.time} Min.` : ""}</span></span>
         <span class="pick-plus" aria-hidden="true">＋</span>
-      </button></li>`).join("")
-      : `<li class="muted pick-empty">${state.recipes.length ? "Kein Rezept gefunden." : "Ihr habt noch keine Rezepte gespeichert."}</li>`;
+      </button></li>`;
+    const own = state.recipes.filter(match).sort(sort);
+    // Rezepte aus meinen anderen Haushalten, gruppiert
+    const groups = {};
+    others.filter(match).sort(sort).forEach((r) => (groups[r._from] = groups[r._from] || []).push(r));
+    const curName = typeof Household !== "undefined" && Household.current ? Household.current.name : "";
+    const hasOthers = Object.keys(groups).length > 0;
+    $("#plan-pick-list").innerHTML =
+      (hasOthers ? `<li class="pick-group">🏡 ${esc(curName || "Dieser Haushalt")}</li>` : "") +
+      (own.length ? own.map((r) => item(r, "own")).join("") : `<li class="muted pick-empty">${state.recipes.length ? "Kein Rezept gefunden." : "In diesem Haushalt gibt es noch keine Rezepte."}</li>`) +
+      Object.entries(groups).map(([name, list]) => `<li class="pick-group">🏡 Aus „${esc(name)}“ <small>– wird als Kopie eingeplant</small></li>` + list.map((r) => item(r, "other")).join("")).join("");
   }
   $("#plan-pick-search").addEventListener("input", renderPicker);
   $("#plan-pick-list").addEventListener("click", async (e) => {
     const b = e.target.closest(".pick-item");
     if (!b) return;
-    const r = state.recipes.find((x) => x.id === b.dataset.id);
+    const r = (b.dataset.src === "other" ? others : state.recipes).find((x) => x.id === b.dataset.id);
     closeModal($("#plan-pick-modal"));
     await addEntry(pickDate, r);
   });
@@ -284,6 +315,12 @@ const Plan = (() => {
     if (act === "recipe") {
       closeModal($("#plan-meal-modal"));
       // zum Tab „Rezepte“ wechseln und das Rezept mit der geplanten Portionenzahl öffnen
+      if (!isOwn(e)) {
+        // Rezept aus einem anderen Haushalt bzw. Kopie → nur ansehen (mit Übernehmen-Möglichkeit)
+        openRecipeReadOnly(r, e.fromHousehold || (others.find((x) => x.id === r.id)?._from) || "");
+        if (e.servings !== r.servings) setServings(e.servings);
+        return;
+      }
       if (state.type !== r.type) { state.type = r.type; state.category = "all"; state.tags.clear(); }
       document.querySelector('.tab[data-tab="rezepte"]').click();
       renderList();

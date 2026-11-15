@@ -788,12 +788,22 @@ body.locked .tabs, body.locked main { display: none; }
 .pf-person .hh-who small { display: block; }
 .pf-none { padding: 8px; font-size: 13.5px; }
 .pf-incoming { border-color: var(--peach); }
+.pf-logout { align-self: center; color: #a4472a; }
+.hh-pills { display: flex; flex-wrap: wrap; gap: 4px; width: fit-content; max-width: 100%; margin: 0; padding: 5px; border-radius: 22px; background: rgba(225,240,232,.55); border: 1px solid rgba(255,255,255,.9); box-shadow: inset 0 1px 3px rgba(63,127,104,.08); }
+.hh-pill { padding: 7px 14px; font-size: 14px; }
+.hh-new { color: var(--mint-700); }
+.hh-new-form { border-color: var(--mint-300); }
 .friend-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 14px; border-radius: var(--radius); background: linear-gradient(135deg, #fff8e8, var(--peach-soft)); border: 1px solid rgba(217,138,100,.25); }
 .fb-text { flex: 1; min-width: 160px; font-size: 14px; }
 .fb-text small { display: block; color: var(--ink-soft); }
 .friend-banner .btn { padding: 7px 12px; font-size: 13px; }
 .copy-btn { display: none; }
-body.friend-view .copy-btn { display: inline-flex; }
+body.friend-view .copy-btn, #detail-modal.ro .copy-btn { display: inline-flex; }
+#detail-modal.ro [data-action="edit"], #detail-modal.ro [data-action="delete"], #detail-modal.ro [data-action="plan"] { display: none !important; }
+.ro-note { margin: 6px 0 0; font-size: 13.5px; font-weight: 700; color: #94543a; }
+.pick-group { margin: 10px 2px 2px; font-size: 13px; font-weight: 800; color: var(--mint-900); }
+.pick-group small { font-weight: 500; color: var(--ink-soft); }
+.pick-group:first-child { margin-top: 0; }
 /* Freundesansicht: nur ansehen (Datenbank verhindert Änderungen ohnehin) */
 body.friend-view #btn-new, body.friend-view [data-action="edit"], body.friend-view [data-action="delete"], body.friend-view [data-action="plan"],
 body.friend-view [data-action="add-all"], body.friend-view .ing-cart, body.friend-view #migrate-banner { display: none !important; }

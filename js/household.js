@@ -202,7 +202,16 @@ const Household = (() => {
     } catch (err) { console.error(err); }
 
     body.innerHTML = `
-      ${mine.length > 1 ? `<label class="field"><span>Haushalt wechseln</span><select id="hh-switch">${mine.map((h) => `<option value="${h.id}" ${h.id === current.id ? "selected" : ""}>${esc(h.name)} (${esc(ROLE_LABEL[h.role])})</option>`).join("")}</select></label>` : ""}
+      ${mine.length > 1 || isAdmin ? `<div class="hh-pills" role="tablist" aria-label="Haushalt wechseln">
+        ${mine.map((h) => `<button type="button" class="subtab hh-pill ${h.id === current.id ? "is-active" : ""}" data-hh="switch" data-id="${h.id}" aria-selected="${h.id === current.id}">${esc(h.name)}</button>`).join("")}
+        ${isAdmin ? `<button type="button" class="subtab hh-pill hh-new" data-hh="new-open">＋ Neu</button>` : ""}
+      </div>
+      <form class="card hh-card hh-new-form" id="hh-new-form" hidden>
+        <h3>Neuer Haushalt</h3>
+        <p class="muted pf-note">Z. B. „Urlaub Toskana“ – danach lädst du die anderen ein. Eure bisherigen Haushalte bleiben getrennt.</p>
+        <label class="field"><span>Name</span><input type="text" id="hh-new-name" maxlength="60" placeholder="z. B. Urlaub" /></label>
+        <div class="hh-invite-btns"><button type="submit" class="btn btn-primary">Haushalt anlegen</button><button type="button" class="btn btn-ghost" data-hh="new-cancel">Abbrechen</button></div>
+      </form>` : ""}
 
       <section class="card hh-card">
         <h3>${esc(current.name)}</h3>
@@ -272,6 +281,14 @@ const Household = (() => {
     if (!b) return;
     const act = b.dataset.hh;
     try {
+      if (act === "switch") {
+        if (b.dataset.id === current.id) return;
+        try { localStorage.setItem(HH_KEY, b.dataset.id); } catch {}
+        location.reload(); // sauber mit den Daten des anderen Haushalts neu starten
+        return;
+      }
+      if (act === "new-open") { $("#hh-new-form").hidden = false; $("#hh-new-name").focus(); return; }
+      if (act === "new-cancel") { $("#hh-new-form").hidden = true; return; }
       if (act === "save") {
         const name = $("#hh-edit-name").value.trim(), sub = $("#hh-edit-sub").value.trim();
         await Store.households.rpc("update_household", { p_household: current.id, p_name: name, p_subtitle: sub });
@@ -305,12 +322,19 @@ const Household = (() => {
       }
     } catch (ex) { toast(errText(ex)); }
   });
+  $("#hh-body").addEventListener("submit", async (e) => {
+    if (e.target.id !== "hh-new-form") return;
+    e.preventDefault();
+    const name = $("#hh-new-name").value.trim();
+    if (!name) return $("#hh-new-name").focus();
+    try {
+      const id = await Store.households.rpc("create_household", { p_name: name });
+      try { localStorage.setItem(HH_KEY, id); } catch {}
+      toast(`🏡 „${name}“ angelegt`);
+      setTimeout(() => location.reload(), 600);
+    } catch (ex) { toast(errText(ex)); }
+  });
   $("#hh-body").addEventListener("change", async (e) => {
-    if (e.target.id === "hh-switch") {
-      try { localStorage.setItem(HH_KEY, e.target.value); } catch {}
-      location.reload(); // sauber mit den Daten des anderen Haushalts neu starten
-      return;
-    }
     if (e.target.classList.contains("hh-role-sel")) {
       try {
         await Store.households.rpc("set_member_role", { p_household: current.id, p_user: e.target.dataset.user, p_role: e.target.value });
@@ -320,5 +344,5 @@ const Household = (() => {
     }
   });
 
-  return { setup, prepareLogin, get signupMode() { return signupMode; }, get current() { return current; }, get readOnly() { return current?.role === "viewer"; }, pending };
+  return { get mine() { return mine; }, setup, prepareLogin, get signupMode() { return signupMode; }, get current() { return current; }, get readOnly() { return current?.role === "viewer"; }, pending };
 })();

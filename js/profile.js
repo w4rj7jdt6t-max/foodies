@@ -25,6 +25,8 @@ const Profile = (() => {
   function paintMe() {
     $("#btn-profile").hidden = !me;
     $("#my-avatar").innerHTML = avatarHTML(me);
+    // Abmelden steckt im Profil – nur ohne Profil (älteres Datenbank-Setup) oben anzeigen
+    $("#btn-logout").hidden = !!me;
   }
 
   /* ---------- Beim Start: Profil vorhanden? Sonst einmalig anlegen ---------- */
@@ -32,7 +34,7 @@ const Profile = (() => {
   async function ensure() {
     try { me = await Store.profiles.mine(); }
     catch (err) {
-      if (err?.missingTable) { available = false; return true; } // Profil-SQL noch nicht ausgeführt → ohne Profile weiter
+      if (err?.missingTable) { available = false; $("#btn-logout").hidden = false; return true; } // Profil-SQL noch nicht ausgeführt → ohne Profile weiter
       console.error(err);
       toast("Profil konnte nicht geladen werden – seid ihr online?");
       return false;
@@ -54,6 +56,7 @@ const Profile = (() => {
     if (!f) return;
     try { pendingAvatar = await compressImage(f, 400, 0.85); $("#ps-avatar").innerHTML = `<img src="${pendingAvatar}" alt="" />`; } catch (err) { toast(err.message); }
   });
+  $("#ps-logout").addEventListener("click", async () => { await Store.auth.signOut(); location.href = location.pathname; });
   $("#ps-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = $("#ps-submit"), err = $("#ps-error");
@@ -130,7 +133,9 @@ const Profile = (() => {
         ${mates.length ? `<ul class="hh-list">${mates.map((f) => personRow(f, `<button type="button" class="btn btn-soft hh-mini" data-pf="view" data-user="${f.user_id}">📖 Rezepte</button><button type="button" class="shop-del" data-pf="unfriend" data-user="${f.user_id}" aria-label="Freundschaft beenden">✕</button>`)).join("")}</ul>`
           : `<p class="muted pf-note">Noch keine Freunde – such oben nach einem @Benutzernamen.</p>`}
         ${outgoing.length ? `<p class="muted hh-open">Gesendete Anfragen:</p><ul class="hh-list">${outgoing.map((f) => personRow(f, `<span class="hh-badge">wartet</span><button type="button" class="shop-del" data-pf="unfriend" data-user="${f.user_id}" aria-label="Anfrage zurückziehen">✕</button>`)).join("")}</ul>` : ""}
-      </section>`;
+      </section>
+
+      <button type="button" class="btn btn-ghost pf-logout" data-pf="logout">Abmelden</button>`;
   }
 
   let searchTimer;
@@ -169,6 +174,7 @@ const Profile = (() => {
     if (!b) return;
     const act = b.dataset.pf, user = b.dataset.user;
     try {
+      if (act === "logout") { await Store.auth.signOut(); location.href = location.pathname; return; }
       if (act === "save") {
         const display_name = $("#pf-name").value.trim(), username = cleanUsername($("#pf-username").value);
         me = await Store.profiles.save({ ...me, display_name, username });

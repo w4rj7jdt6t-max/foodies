@@ -229,6 +229,16 @@ function thumbHTML(r, cls = "thumb") {
 /** Rezepte, die die Liste gerade zeigt: eigene oder (schreibgeschützt) die eines Freundes */
 const listRecipes = () => (state.viewing ? state.viewing.recipes : state.recipes);
 
+/** Rezept aus einem anderen Haushalt (bzw. Kalender-Kopie) ansehen – ohne Bearbeiten, mit „Übernehmen“ */
+function openRecipeReadOnly(r, fromName) {
+  state.current = normalize({ ...r, tags: [...(r.tags || [])] });
+  state.servings = r.servings || 2;
+  state.readOnlyFrom = fromName || "einem anderen Haushalt";
+  renderDetail();
+  $("#detail-modal").classList.add("ro");
+  openModal($("#detail-modal"));
+}
+
 /** Rezept eines Freundes als eigene Kopie anlegen (Foto wird mitkopiert) */
 async function copyFriendRecipe(r) {
   closeModal($("#detail-modal"));
@@ -238,7 +248,9 @@ async function copyFriendRecipe(r) {
   }
   const { id, createdAt, updatedAt, imagePath, imageAuto, imageCredit, ...rest } = r;
   const from = state.viewing?.user;
-  openEditor({ ...rest, image, tips: [...(r.tips || []), ...(from ? [`Rezept von ${from.display_name} (@${from.username})`] : [])] }, { draft: true });
+  const { _from, ...clean } = rest;
+  const note = from ? `Rezept von ${from.display_name} (@${from.username})` : state.readOnlyFrom ? `Übernommen aus „${state.readOnlyFrom}“` : null;
+  openEditor({ ...clean, image, tips: [...(r.tips || []), ...(note ? [note] : [])] }, { draft: true });
 }
 
 /* ---------- Kochen / Backen ---------- */
@@ -328,6 +340,8 @@ $("#search").addEventListener("input", (e) => { state.search = e.target.value; r
 
 /* ================= Detailansicht ================= */
 function openDetail(id) {
+  $("#detail-modal").classList.remove("ro");
+  state.readOnlyFrom = null;
   const r = listRecipes().find((x) => x.id === id);
   if (!r) return;
   state.current = r;
@@ -350,6 +364,7 @@ function renderDetail() {
     </div>
     <div class="detail-body">
       <h2 class="detail-title">${esc(r.title)}</h2>
+      ${state.readOnlyFrom ? `<p class="ro-note">🏡 Aus „${esc(state.readOnlyFrom)}“ · nur ansehen</p>` : ""}
       <div class="meta-chips">
         <span class="meta-chip">${TYPES[r.type].emoji} ${TYPES[r.type].label}</span>
         <span class="meta-chip">${cat.emoji} ${esc(cat.label)}</span>
@@ -843,7 +858,7 @@ async function loadRecipes() {
 function showLogin(show) {
   document.body.classList.toggle("locked", show);
   $("#login").hidden = !show;
-  $("#btn-logout").hidden = show || !Store.cloud;
+  $("#btn-logout").hidden = show || !Store.cloud || !!(typeof Profile !== "undefined" && Profile.me);
   $("#sync-badge").hidden = show || !Store.cloud;
 }
 $("#login-form").addEventListener("submit", async (e) => {

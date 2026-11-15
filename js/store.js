@@ -136,6 +136,13 @@ const Store = (() => {
       return data;
     },
     rpc,
+    /** Rezepte bestimmter (eigener) Haushalte: [{ data, household_id }] */
+    async recipesOf(ids) {
+      if (!ids.length) return [];
+      const { data, error } = await sb.from("recipes").select("data, household_id").in("household_id", ids);
+      if (error) throw error;
+      return data;
+    },
     get current() { return hh; },
   };
 
