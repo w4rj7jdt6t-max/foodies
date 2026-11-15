@@ -951,6 +951,14 @@ async function removeAutoImages() {
  */
 const APP_VERSION = (document.querySelector('script[src*="js/app.js"]')?.getAttribute("src").match(/v=(\d+)/) || [])[1] || "?";
 $("#app-version").textContent = `foodies · Version ${APP_VERSION}`;
+
+// Vorschau-Adresse von Cloudflare (z. B. „mein-branch.projekt.pages.dev“) deutlich kennzeichnen
+const IS_PREVIEW = /\.pages\.dev$/.test(location.hostname) && location.hostname.split(".").length > 3;
+if (IS_PREVIEW) {
+  $("#preview-pill").textContent = `🧪 Vorschau · Version ${APP_VERSION} · echte Daten!`;
+  $("#preview-pill").hidden = false;
+  $("#app-version").textContent += " · Vorschau";
+}
 let updatePending = false;
 async function checkForUpdate() {
   try {
