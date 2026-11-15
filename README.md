@@ -22,6 +22,5 @@ und `http://localhost:8000` öffnen.
   Die Datenbank wird einmalig mit `supabase/setup.sql` eingerichtet (SQL Editor → Run).
 
 ## Hosting
-Cloudflare Pages: Projekt aus GitHub verbinden, Framework „None“, Build-Befehl leer,
-Ausgabeverzeichnis `/`. Cache-Einstellungen stehen in `_headers`.
-(Alternativ Netlify: siehe `netlify.toml`.)
+Cloudflare Pages: Projekt aus GitHub verbinden, Framework „None“,
+Build-Befehl `npm run build`, Ausgabeverzeichnis `dist`. Cache-Einstellungen stehen in `_headers`.

@@ -1,9 +1,0 @@
-// Cloudflare (Workers mit statischen Dateien): veröffentlicht den Ordner „dist“,
-// den der Build-Befehl aus index.html, css/, js/ und _headers zusammenstellt.
-{
-  "name": "foodies",
-  "compatibility_date": "2025-06-01",
-  "assets": {
-    "directory": "./dist"
-  }
-}
