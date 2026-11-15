@@ -230,8 +230,11 @@ function thumbHTML(r, cls = "thumb") {
 const listRecipes = () => (state.viewing ? state.viewing.recipes : state.recipes);
 
 /** Rezept aus einem anderen Haushalt (bzw. Kalender-Kopie) ansehen – ohne Bearbeiten, mit „Übernehmen“ */
-function openRecipeReadOnly(r, fromName, { note = null, attribution = null } = {}) {
+function openRecipeReadOnly(r, fromName, { note = null, attribution = null, friend = null } = {}) {
   state.current = normalize({ ...r, tags: [...(r.tags || [])] });
+  // Freundesrezept → darf (als Kopie im Kalender) eingeplant werden
+  state.planFriend = friend;
+  $("#detail-modal").classList.toggle("ro-plan", !!friend);
   state.servings = r.servings || 2;
   state.readOnlyFrom = fromName || "einem anderen Haushalt";
   state.readOnlyNote = note || `🏡 Aus „${state.readOnlyFrom}“ · nur ansehen`;
@@ -344,6 +347,10 @@ $("#search").addEventListener("input", (e) => { state.search = e.target.value; r
 function openDetail(id) {
   $("#detail-modal").classList.remove("ro");
   state.readOnlyFrom = null;
+  // in der Rezeptliste eines Freundes: Einplanen erlaubt, Bearbeiten nicht
+  const f = state.viewing?.user;
+  state.planFriend = f ? { name: f.display_name, attribution: `Rezept von ${f.display_name} (@${f.username})` } : null;
+  $("#detail-modal").classList.toggle("ro-plan", !!f);
   const r = listRecipes().find((x) => x.id === id);
   if (!r) return;
   state.current = r;
@@ -457,7 +464,7 @@ $("#detail-content").addEventListener("click", async (e) => {
     return toast("Rezept gelöscht 🗑️");
   }
   if (act === "add-all") return Shop.addAll(state.current, state.servings / state.current.servings);
-  if (act === "plan") return Plan.openDayPicker(state.current);
+  if (act === "plan") return Plan.openDayPicker(state.current, { friend: state.planFriend });
   if (act === "copy") return copyFriendRecipe(state.current);
   const cart = e.target.closest(".ing-cart");
   if (cart) {
@@ -852,7 +859,8 @@ form.addEventListener("submit", async (e) => {
 /* ================= Start ================= */
 async function loadRecipes() {
   state.recipes = (await Store.all()).map(normalize);
-  if (state.current && !state.recipes.some((r) => r.id === state.current.id) && $("#detail-modal").open) closeModal($("#detail-modal"));
+  if (state.current && !state.recipes.some((r) => r.id === state.current.id) && $("#detail-modal").open
+      && !$("#detail-modal").classList.contains("ro") && !state.viewing) closeModal($("#detail-modal"));
   renderList();
 }
 

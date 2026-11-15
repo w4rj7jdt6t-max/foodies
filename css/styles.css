@@ -829,6 +829,8 @@ body.locked .tabs, body.locked main { display: none; }
 .copy-btn { display: none; }
 body.friend-view .copy-btn, #detail-modal.ro .copy-btn { display: inline-flex; }
 #detail-modal.ro [data-action="edit"], #detail-modal.ro [data-action="delete"], #detail-modal.ro [data-action="plan"] { display: none !important; }
+#detail-modal.ro-plan [data-action="plan"] { display: inline-flex !important; }
+body.readonly #detail-modal.ro-plan [data-action="plan"] { display: none !important; }
 .ro-note { margin: 6px 0 0; font-size: 13.5px; font-weight: 700; color: #94543a; }
 .pick-group { margin: 10px 2px 2px; font-size: 13px; font-weight: 800; color: var(--mint-900); }
 .pick-group small { font-weight: 500; color: var(--ink-soft); }

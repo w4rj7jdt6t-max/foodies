@@ -504,7 +504,8 @@ function openFriendRecipe(id) {
   const e = insp.friendRecipes.find((x) => x.r.id === id);
   if (!e) return;
   const names = authorNames(e.authors), first = e.authors[0];
-  openRecipeReadOnly(e.r, names, { note: `👤 Von ${names} · nur ansehen`, attribution: `Rezept von ${first.display_name} (@${first.username})` });
+  const attribution = `Rezept von ${first.display_name} (@${first.username})`;
+  openRecipeReadOnly(e.r, names, { note: `👤 Von ${names} · nur ansehen`, attribution, friend: { name: names, attribution } });
 }
 
 function setSource(src) {

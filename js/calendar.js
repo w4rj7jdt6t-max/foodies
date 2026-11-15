@@ -102,7 +102,7 @@ const Plan = (() => {
         return `<li><button type="button" class="meal" data-id="${e.id}">
           ${mealThumb(r)}
           <span class="meal-text"><span class="meal-title">${esc(r?.title || e.recipeTitle)}</span>
-          <span class="meal-sub">${r ? `👥 ${e.servings} ${e.servings === 1 ? "Portion" : "Portionen"}${!isOwn(e) && e.fromHousehold ? ` · aus „${esc(e.fromHousehold)}“` : ""}` : "Rezept wurde gelöscht"}</span></span>
+          <span class="meal-sub">${r ? `👥 ${e.servings} ${e.servings === 1 ? "Portion" : "Portionen"}${!isOwn(e) && e.fromFriend ? ` · 👤 von ${esc(e.fromFriend.name)}` : !isOwn(e) && e.fromHousehold ? ` · aus „${esc(e.fromHousehold)}“` : ""}` : "Rezept wurde gelöscht"}</span></span>
           <span class="bar-chevron" aria-hidden="true">›</span>
         </button></li>`;
       }).join("")}</ul>
@@ -159,14 +159,15 @@ const Plan = (() => {
     if (c) openPicker(c.dataset.date); // Tag antippen → direkt für diesen Tag planen
   });
 
-  async function addEntry(date, recipe) {
+  async function addEntry(date, recipe, friend = null) {
     const entry = { id: uid(), date, recipeId: recipe.id, recipeTitle: recipe.title, servings: recipe.servings || 2, createdAt: Date.now() };
     // Rezept aus einem anderen Haushalt → Kopie mitspeichern, damit die Mitglieder HIER es sehen
     // (ohne Zugriff auf den anderen Haushalt zu bekommen)
     if (!state.recipes.some((r) => r.id === recipe.id)) {
       const { _from, imagePath, imageAuto, imageCredit, autoImageCheckedAt, ...snap } = recipe;
       entry.snapshot = snap;
-      entry.fromHousehold = _from || "";
+      if (friend) entry.fromFriend = { name: friend.name, attribution: friend.attribution || "" };
+      else entry.fromHousehold = _from || "";
     }
     entries.push(entry);
     selected = date;
@@ -233,8 +234,10 @@ const Plan = (() => {
 
   /* ---------- Tag wählen (aus dem Rezept) ---------- */
   let dayRecipe = null;
-  function openDayPicker(recipe) {
+  let dayFriend = null;
+  function openDayPicker(recipe, { friend = null } = {}) {
     dayRecipe = recipe;
+    dayFriend = friend;
     $("#plan-day-sub").textContent = `${recipe.title} einplanen für …`;
     $("#plan-day-list").innerHTML = days().map((d) => {
       const l = dayLabel(d), meals = entries.filter((e) => e.date === d.key);
@@ -250,7 +253,7 @@ const Plan = (() => {
     const b = e.target.closest(".day-pick-btn");
     if (!b) return;
     closeModal($("#plan-day-modal"));
-    await addEntry(b.dataset.date, dayRecipe);
+    await addEntry(b.dataset.date, dayRecipe, dayFriend);
   });
 
   /* ---------- Geplante Mahlzeit: nur Zutaten ---------- */
@@ -317,7 +320,8 @@ const Plan = (() => {
       // zum Tab „Rezepte“ wechseln und das Rezept mit der geplanten Portionenzahl öffnen
       if (!isOwn(e)) {
         // Rezept aus einem anderen Haushalt bzw. Kopie → nur ansehen (mit Übernehmen-Möglichkeit)
-        openRecipeReadOnly(r, e.fromHousehold || (others.find((x) => x.id === r.id)?._from) || "");
+        if (e.fromFriend) openRecipeReadOnly(r, e.fromFriend.name, { note: `👤 Von ${e.fromFriend.name} · im Kalender eingeplant`, attribution: e.fromFriend.attribution });
+        else openRecipeReadOnly(r, e.fromHousehold || (others.find((x) => x.id === r.id)?._from) || "");
         if (e.servings !== r.servings) setServings(e.servings);
         return;
       }
