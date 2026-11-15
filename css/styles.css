@@ -837,7 +837,7 @@ body.readonly #detail-modal.ro-plan [data-action="plan"] { display: none !import
 .pick-group:first-child { margin-top: 0; }
 /* Freundesansicht: nur ansehen (Datenbank verhindert Änderungen ohnehin) */
 body.friend-view #btn-new, body.friend-view [data-action="edit"], body.friend-view [data-action="delete"], body.friend-view [data-action="plan"],
-body.friend-view [data-action="add-all"], body.friend-view .ing-cart, body.friend-view #migrate-banner { display: none !important; }
+body.friend-view #migrate-banner { display: none !important; }
 
 /* „Nur ansehen“: alle Bearbeiten-Möglichkeiten ausblenden (die Datenbank verhindert Änderungen ohnehin) */
 body.readonly #btn-new, body.readonly [data-action="edit"], body.readonly [data-action="delete"], body.readonly [data-action="add-all"],
