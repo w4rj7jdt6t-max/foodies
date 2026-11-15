@@ -1,0 +1,4 @@
+# Cloudflare Pages: Seite, Skripte und Styles immer frisch abfragen,
+# damit iPhones/Home-Bildschirm-Apps nicht mit alten Versionen hängen bleiben.
+/*
+  Cache-Control: no-cache
