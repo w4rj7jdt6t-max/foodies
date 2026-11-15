@@ -127,12 +127,13 @@ const Store = (() => {
       const s = await auth.session();
       if (!s) return [];
       const q = (cols) => sb.from("household_members").select(`household_id, role, households(${cols})`).eq("user_id", s.user.id);
-      let { data, error } = await q("name, subtitle, image_url, image_path");
-      // Haushaltsbild-SQL noch nicht ausgeführt → ohne Bild weiter
+      let { data, error } = await q("name, subtitle, image_url, image_path, image_src");
+      // Bild-SQL noch nicht (vollständig) ausgeführt → mit weniger Feldern weiter
+      if (error && /image_src/.test(error.message || "")) ({ data, error } = await q("name, subtitle, image_url, image_path"));
       if (error && /image_(url|path)/.test(error.message || "")) ({ data, error } = await q("name, subtitle"));
       if (error) { if (missingTable(error)) error.missingTable = true; throw error; }
       return data.map((m) => ({ id: m.household_id, role: m.role, name: m.households?.name || "Haushalt", subtitle: m.households?.subtitle || "",
-        image_url: m.households?.image_url || null, image_path: m.households?.image_path || null }));
+        image_url: m.households?.image_url || null, image_path: m.households?.image_path || null, image_src: m.households?.image_src || null }));
     },
     async members(id) {
       const { data, error } = await sb.from("household_members").select("user_id, role, email, joined_at").eq("household_id", id).order("joined_at");
@@ -141,8 +142,8 @@ const Store = (() => {
     },
     rpc,
     /** Haushaltsbild hochladen (DataURL) → { url, path } – liegt im Ordner des Haushalts */
-    async uploadImage(hh, dataUrl) {
-      const path = `${hh}/haushalt/${Date.now().toString(36)}.jpg`;
+    async uploadImage(hh, dataUrl, suffix = "") {
+      const path = `${hh}/haushalt/${Date.now().toString(36)}${suffix}.jpg`;
       const { error } = await sb.storage.from(BUCKET).upload(path, dataUrlToBlob(dataUrl), { contentType: "image/jpeg", upsert: false });
       if (error) throw error;
       return { url: sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl, path };
@@ -176,7 +177,10 @@ const Store = (() => {
     },
     async save(p) {
       const id = await this.myId();
-      const { data, error } = await sb.from("profiles").upsert({ user_id: id, username: p.username, display_name: p.display_name, avatar_url: p.avatar_url ?? null, avatar_path: p.avatar_path ?? null, updated_at: new Date().toISOString() }).select().single();
+      const row = { user_id: id, username: p.username, display_name: p.display_name, avatar_url: p.avatar_url ?? null, avatar_path: p.avatar_path ?? null, avatar_src: p.avatar_src ?? null, updated_at: new Date().toISOString() };
+      let { data, error } = await sb.from("profiles").upsert(row).select().single();
+      // Bild-SQL noch nicht ausgeführt → ohne Original speichern
+      if (error && /avatar_src/.test(error.message || "")) { delete row.avatar_src; ({ data, error } = await sb.from("profiles").upsert(row).select().single()); }
       if (error) throw error;
       return data;
     },
@@ -187,9 +191,9 @@ const Store = (() => {
       return Object.fromEntries(data.map((p) => [p.user_id, p]));
     },
     /** Profilbild hochladen (DataURL) → { url, path } */
-    async uploadAvatar(dataUrl) {
+    async uploadAvatar(dataUrl, suffix = "") {
       const id = await this.myId();
-      const path = `${id}/${Date.now().toString(36)}.jpg`;
+      const path = `${id}/${Date.now().toString(36)}${suffix}.jpg`;
       const { error } = await sb.storage.from("avatars").upload(path, dataUrlToBlob(dataUrl), { contentType: "image/jpeg", upsert: false });
       if (error) throw error;
       return { url: sb.storage.from("avatars").getPublicUrl(path).data.publicUrl, path };

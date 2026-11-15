@@ -20,7 +20,7 @@ und `http://localhost:8000` öffnen.
 - **Gemeinsame Sammlung:** In `js/config.js` die Supabase-Projekt-URL und den `anon public`-Schlüssel
   eintragen. Dann gibt es eine Anmeldung, und alle Geräte teilen dieselben Rezepte (live).
   Die Datenbank wird einmalig mit `supabase/setup.sql` eingerichtet (SQL Editor → Run).
-  Danach – jeweils einmal und in dieser Reihenfolge – `supabase/households.sql`, `supabase/profiles.sql`, `supabase/multi.sql` , `supabase/admin.sql` (Haushalte löschen für den Verwalter) und `supabase/household-image.sql` (Haushaltsbild).
+  Danach – jeweils einmal und in dieser Reihenfolge – `supabase/households.sql`, `supabase/profiles.sql`, `supabase/multi.sql` , `supabase/admin.sql` (Haushalte löschen für den Verwalter), `supabase/household-image.sql` (Haushaltsbild) und `supabase/image-edit.sql` (Bilder nachträglich zuschneiden).
 
 ## Hosting
 Cloudflare Pages: Projekt aus GitHub verbinden, Framework „None“,

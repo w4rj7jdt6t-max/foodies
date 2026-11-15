@@ -55,10 +55,10 @@ const Profile = (() => {
     const f = e.target.files[0]; e.target.value = "";
     if (!f) return;
     try {
-      const cropped = await Cropper.open(f);
-      if (!cropped) return; // abgebrochen
-      pendingAvatar = cropped;
-      $("#ps-avatar").innerHTML = `<img src="${pendingAvatar}" alt="" />`;
+      const res = await Cropper.open(f);
+      if (!res) return; // abgebrochen
+      pendingAvatar = res;
+      $("#ps-avatar").innerHTML = `<img src="${res.image}" alt="" />`;
     } catch (err) { toast(err.message); }
   });
   $("#ps-logout").addEventListener("click", async () => { await Store.auth.signOut(); location.href = location.pathname; });
@@ -71,7 +71,13 @@ const Profile = (() => {
     btn.disabled = true;
     try {
       let av = {};
-      if (pendingAvatar) { try { const u = await Store.profiles.uploadAvatar(pendingAvatar); av = { avatar_url: u.url, avatar_path: u.path }; } catch (ex) { console.error(ex); toast("Profilbild konnte nicht hochgeladen werden – du kannst es später ändern."); } }
+      if (pendingAvatar) {
+        try {
+          const u = await Store.profiles.uploadAvatar(pendingAvatar.image);
+          av = { avatar_url: u.url, avatar_path: u.path };
+          try { const o = await Store.profiles.uploadAvatar(pendingAvatar.original, "-orig"); av.avatar_src = { url: o.url, path: o.path, crop: pendingAvatar.crop }; } catch (ex) { console.warn(ex); }
+        } catch (ex) { console.error(ex); toast("Profilbild konnte nicht hochgeladen werden – du kannst es später ändern."); }
+      }
       me = await Store.profiles.save({ display_name, username, ...av });
       pendingAvatar = null;
       $("#profile-setup").hidden = true;
@@ -110,12 +116,7 @@ const Profile = (() => {
     const mates = friends.filter((f) => f.status === "friends");
     $("#pf-body").innerHTML = `
       <section class="card hh-card pf-me">
-        <label class="ps-avatar pf-avatar" title="Profilbild ändern">
-          <input type="file" accept="image/*" id="pf-avatar-input" hidden />
-          <span class="avatar avatar-xl" id="pf-avatar">${avatarHTML(me)}</span>
-          <span class="ps-avatar-hint">📷 Ändern</span>
-        </label>
-        ${me.avatar_url ? `<button type="button" class="link-btn pf-remove-avatar" data-pf="remove-avatar">Bild entfernen</button>` : ""}
+        ${Cropper.pickerHTML({ inputId: "pf-avatar-input", imgId: "pf-avatar", url: me.avatar_url, fallback: DEFAULT_AVATAR, editAttr: 'data-pf="avatar-edit"', removeAttr: 'data-pf="remove-avatar"', label: "Profilbild" })}
         <label class="field"><span>Dein Name</span><input type="text" id="pf-name" maxlength="40" value="${esc(me.display_name)}" /></label>
         <label class="field"><span>Benutzername</span><span class="at-field"><span>@</span><input type="text" id="pf-username" maxlength="20" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(me.username)}" /></span></label>
         <button type="button" class="btn btn-soft" data-pf="save">Speichern</button>
@@ -159,20 +160,21 @@ const Profile = (() => {
     out.innerHTML = list.length ? list.map((p) => personRow(p, label[p.status].replace("{id}", p.user_id))).join("") : `<li class="muted pf-none">Niemand gefunden.</li>`;
   }
 
-  $("#pf-body").addEventListener("change", async (e) => {
-    if (e.target.id !== "pf-avatar-input") return;
-    const f = e.target.files[0]; e.target.value = "";
-    if (!f) return;
+  /** neues Profilbild (file) oder Ausschnitt des bestehenden ändern (file = null) */
+  async function editAvatar(file) {
     try {
-      const dataUrl = await Cropper.open(f);
-      if (!dataUrl) return; // abgebrochen
-      $("#pf-avatar").innerHTML = `<img src="${dataUrl}" alt="" />`;
-      const u = await Store.profiles.uploadAvatar(dataUrl);
-      const old = me.avatar_path;
-      me = await Store.profiles.save({ ...me, avatar_url: u.url, avatar_path: u.path });
-      Store.profiles.removeAvatar(old);
+      const r = await Cropper.edit({ url: me.avatar_url, path: me.avatar_path, src: me.avatar_src },
+        file, (dataUrl, suffix) => Store.profiles.uploadAvatar(dataUrl, suffix));
+      if (!r) return; // abgebrochen
+      me = await Store.profiles.save({ ...me, avatar_url: r.url, avatar_path: r.path, avatar_src: r.src });
+      r.remove.forEach((p) => Store.profiles.removeAvatar(p));
       paintMe(); render(); toast("Profilbild gespeichert ✓");
     } catch (ex) { toast(errText(ex)); render(); }
+  }
+  $("#pf-body").addEventListener("change", (e) => {
+    if (e.target.id !== "pf-avatar-input") return;
+    const f = e.target.files[0]; e.target.value = "";
+    if (f) editAvatar(f);
   });
 
   $("#pf-body").addEventListener("click", async (e) => {
@@ -186,10 +188,12 @@ const Profile = (() => {
         me = await Store.profiles.save({ ...me, display_name, username });
         paintMe(); toast("Profil gespeichert ✓"); return render();
       }
+      if (act === "avatar-edit") return editAvatar(null);
       if (act === "remove-avatar") {
-        const old = me.avatar_path;
-        me = await Store.profiles.save({ ...me, avatar_url: null, avatar_path: null });
-        Store.profiles.removeAvatar(old);
+        if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Wirklich entfernen?"; setTimeout(() => { if (b.isConnected) render(); }, 3000); return; }
+        const old = [me.avatar_path, me.avatar_src?.path];
+        me = await Store.profiles.save({ ...me, avatar_url: null, avatar_path: null, avatar_src: null });
+        old.filter(Boolean).forEach((p) => Store.profiles.removeAvatar(p));
         paintMe(); return render();
       }
       if (act === "request") {

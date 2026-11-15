@@ -229,14 +229,7 @@ const Household = (() => {
       </form>` : ""}
 
       <section class="card hh-card">
-        ${isOwner ? `<div class="hh-photo-edit">
-          <label class="ps-avatar" title="Haushaltsbild ändern">
-            <input type="file" accept="image/*" id="hh-photo-input" hidden />
-            <span class="avatar avatar-xl hh-photo-big" id="hh-photo-big">${current.image_url ? `<img src="${esc(current.image_url)}" alt="" />` : "🏡"}</span>
-            <span class="ps-avatar-hint">📷 ${current.image_url ? "Haushaltsbild ändern" : "Haushaltsbild hinzufügen"}</span>
-          </label>
-          ${current.image_url ? `<button type="button" class="link-btn" data-hh="photo-remove">Bild entfernen</button>` : ""}
-        </div>` : current.image_url ? `<div class="hh-photo-edit"><span class="avatar avatar-xl hh-photo-big"><img src="${esc(current.image_url)}" alt="" /></span></div>` : ""}
+        ${isOwner ? `<div class="hh-photo-edit">${Cropper.pickerHTML({ inputId: "hh-photo-input", imgId: "hh-photo-big", url: current.image_url, fallback: `<span class="hh-photo-fallback">🏡</span>`, editAttr: 'data-hh="photo-edit"', removeAttr: 'data-hh="photo-remove"', label: "Haushaltsbild" })}</div>` : current.image_url ? `<div class="hh-photo-edit"><span class="avatar avatar-xl hh-photo-big"><img src="${esc(current.image_url)}" alt="" /></span></div>` : ""}
         <h3>${esc(current.name)}</h3>
         <p class="muted hh-role">Deine Rolle: <b>${esc(ROLE_LABEL[current.role])}</b></p>
         ${isOwner ? `<div class="hh-edit">
@@ -377,12 +370,13 @@ const Household = (() => {
       }
       if (act === "photo-remove") {
         if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Wirklich entfernen?"; setTimeout(() => { if (b.isConnected) render(); }, 3000); return; }
-        await Store.households.rpc("set_household_image", { p_household: current.id, p_url: null, p_path: null });
-        const old = current.image_path;
-        setImage(null, null);
-        if (old) Store.households.removeFiles("recipe-images", [old]).catch(() => {});
+        await saveImage(null, null, null);
+        const old = [current.image_path, current.image_src?.path].filter(Boolean);
+        setImage(null, null, null);
+        if (old.length) Store.households.removeFiles("recipe-images", old).catch(() => {});
         toast("Haushaltsbild entfernt"); return render();
       }
+      if (act === "photo-edit") return editImage(null);
       if (act === "del-open") return openDelete(b.dataset.id, b.dataset.name);
       if (act === "del-cancel") return render();
       if (act === "del-go") {
@@ -411,27 +405,36 @@ const Household = (() => {
       setTimeout(() => location.reload(), 600);
     } catch (ex) { toast(errText(ex)); }
   });
-  function setImage(url, path) {
-    Object.assign(current, { image_url: url, image_path: path });
-    const m = mine.find((h) => h.id === current.id); if (m) Object.assign(m, { image_url: url, image_path: path });
+  function setImage(url, path, src) {
+    const v = { image_url: url, image_path: path, image_src: src };
+    Object.assign(current, v);
+    const m = mine.find((h) => h.id === current.id); if (m) Object.assign(m, v);
     applyCurrent();
   }
-  $("#hh-body").addEventListener("change", async (e) => {
-    if (e.target.id !== "hh-photo-input") return;
-    const f = e.target.files[0]; e.target.value = "";
-    if (!f) return;
+  async function saveImage(url, path, src) {
+    try { await Store.households.rpc("set_household_image", { p_household: current.id, p_url: url, p_path: path, p_src: src }); }
+    catch (ex) { // Bild-SQL (Original/Ausschnitt) noch nicht ausgeführt → ohne Original speichern
+      if (!/p_src|set_household_image\(/.test(String(ex?.message || ""))) throw ex;
+      await Store.households.rpc("set_household_image", { p_household: current.id, p_url: url, p_path: path });
+    }
+  }
+  /** neues Haushaltsbild (file) oder Ausschnitt des bestehenden ändern (file = null) */
+  async function editImage(file) {
     try {
-      const dataUrl = await Cropper.open(f);
-      if (!dataUrl) return; // abgebrochen
-      $("#hh-photo-big").innerHTML = `<img src="${dataUrl}" alt="" />`;
-      const u = await Store.households.uploadImage(current.id, dataUrl);
-      try { await Store.households.rpc("set_household_image", { p_household: current.id, p_url: u.url, p_path: u.path }); }
-      catch (ex) { Store.households.removeFiles("recipe-images", [u.path]).catch(() => {}); throw ex; }
-      const old = current.image_path;
-      setImage(u.url, u.path);
-      if (old) Store.households.removeFiles("recipe-images", [old]).catch(() => {});
+      const r = await Cropper.edit({ url: current.image_url, path: current.image_path, src: current.image_src },
+        file, (dataUrl, suffix) => Store.households.uploadImage(current.id, dataUrl, suffix));
+      if (!r) return; // abgebrochen
+      try { await saveImage(r.url, r.path, r.src); }
+      catch (ex) { Store.households.removeFiles("recipe-images", [r.path, file ? r.src?.path : null].filter(Boolean)).catch(() => {}); throw ex; }
+      setImage(r.url, r.path, r.src);
+      if (r.remove.length) Store.households.removeFiles("recipe-images", r.remove).catch(() => {});
       toast("Haushaltsbild gespeichert ✓"); render();
     } catch (ex) { toast(errText(ex)); render(); }
+  }
+  $("#hh-body").addEventListener("change", (e) => {
+    if (e.target.id !== "hh-photo-input") return;
+    const f = e.target.files[0]; e.target.value = "";
+    if (f) editImage(f);
   });
   $("#hh-body").addEventListener("change", async (e) => {
     if (e.target.classList.contains("hh-role-sel")) {
