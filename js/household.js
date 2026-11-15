@@ -111,7 +111,7 @@ const Household = (() => {
     $("#onboard").hidden = true;
     $("#btn-household").hidden = false;
     $("#hh-name").textContent = current.name;
-    $("#brand-sub").textContent = current.subtitle || `${current.name} · eure gemeinsame Küche`;
+    $("#brand-sub").textContent = current.subtitle || "by toem";
     const ro = current.role === "viewer";
     document.body.classList.toggle("readonly", ro);
     $("#readonly-pill").hidden = !ro;
@@ -218,7 +218,7 @@ const Household = (() => {
         <p class="muted hh-role">Deine Rolle: <b>${esc(ROLE_LABEL[current.role])}</b></p>
         ${isOwner ? `<div class="hh-edit">
           <label class="field"><span>Name</span><input type="text" id="hh-edit-name" maxlength="60" value="${esc(current.name)}" /></label>
-          <label class="field"><span>Untertitel oben auf der Seite</span><input type="text" id="hh-edit-sub" maxlength="80" value="${esc(current.subtitle || "")}" placeholder="${esc(current.name)} · eure gemeinsame Küche" /></label>
+          <label class="field"><span>Untertitel oben auf der Seite</span><input type="text" id="hh-edit-sub" maxlength="80" value="${esc(current.subtitle || "")}" placeholder="by toem" /></label>
           <button type="button" class="btn btn-soft" data-hh="save">Speichern</button>
         </div>` : ""}
       </section>
