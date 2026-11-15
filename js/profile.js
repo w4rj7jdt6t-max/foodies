@@ -54,7 +54,12 @@ const Profile = (() => {
   $("#ps-avatar-input").addEventListener("change", async (e) => {
     const f = e.target.files[0]; e.target.value = "";
     if (!f) return;
-    try { pendingAvatar = await compressImage(f, 400, 0.85); $("#ps-avatar").innerHTML = `<img src="${pendingAvatar}" alt="" />`; } catch (err) { toast(err.message); }
+    try {
+      const cropped = await Cropper.open(f);
+      if (!cropped) return; // abgebrochen
+      pendingAvatar = cropped;
+      $("#ps-avatar").innerHTML = `<img src="${pendingAvatar}" alt="" />`;
+    } catch (err) { toast(err.message); }
   });
   $("#ps-logout").addEventListener("click", async () => { await Store.auth.signOut(); location.href = location.pathname; });
   $("#ps-form").addEventListener("submit", async (e) => {
@@ -159,7 +164,8 @@ const Profile = (() => {
     const f = e.target.files[0]; e.target.value = "";
     if (!f) return;
     try {
-      const dataUrl = await compressImage(f, 400, 0.85);
+      const dataUrl = await Cropper.open(f);
+      if (!dataUrl) return; // abgebrochen
       $("#pf-avatar").innerHTML = `<img src="${dataUrl}" alt="" />`;
       const u = await Store.profiles.uploadAvatar(dataUrl);
       const old = me.avatar_path;
