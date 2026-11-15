@@ -1,6 +1,6 @@
 /* ================= Haushalte: Einladungen, Gründen, Beitreten, Verwalten =================
  * Jeder Account gehört zu einem (oder mehreren) Haushalten und sieht nur dessen Daten.
- * - „Neues Paar“-Einladung (nur der Verwalter): gründet einen eigenen Haushalt
+ * - „Neuer Haushalt“-Einladung (nur der Verwalter): gründet einen eigenen Haushalt
  * - „Haushalt beitreten“-Einladung (Mitglieder mit Bearbeiten-Recht): tritt genau diesem Haushalt bei
  * Die Datenbank erzwingt diese Regeln – die App zeigt nur die passenden Knöpfe.
  */
@@ -266,13 +266,13 @@ const Household = (() => {
 
       ${adminData ? `<section class="card hh-card hh-admin">
         <h3>⭐ Verwaltung</h3>
-        <p class="muted">Nur du siehst diesen Bereich. Mit einem „Neues Paar“-Link gründet jemand einen eigenen, leeren Haushalt (gilt einmal, 30 Tage).</p>
+        <p class="muted">Nur du siehst diesen Bereich. Mit einem „Neuer Haushalt“-Link gründet jemand einen eigenen, leeren Haushalt (gilt einmal, 30 Tage).</p>
         <div class="hh-row">
           <input type="text" id="hh-new-label" placeholder="Für wen? z. B. Lisa & Ben (optional)" maxlength="60" />
-          <button type="button" class="btn btn-primary" data-hh="new-couple">＋ Neues Paar einladen</button>
+          <button type="button" class="btn btn-primary" data-hh="new-couple">＋ Neuen Haushalt einladen</button>
         </div>
         <div id="hh-admin-out"></div>
-        ${adminData.invites.length ? `<p class="muted hh-open">Offene Paar-Einladungen:</p><ul class="hh-list">${adminData.invites.map((i) => `<li>
+        ${adminData.invites.length ? `<p class="muted hh-open">Offene Haushalts-Einladungen:</p><ul class="hh-list">${adminData.invites.map((i) => `<li>
           <span class="hh-who">${esc(i.label || "ohne Namen")} · bis ${new Date(i.expires_at).toLocaleDateString("de-DE")}</span>
           <button type="button" class="btn btn-ghost hh-mini" data-hh="share" data-code="${i.code}">Link</button>
           <button type="button" class="shop-del" data-hh="revoke" data-code="${i.code}" aria-label="Zurückziehen">✕</button></li>`).join("")}</ul>` : ""}
@@ -359,7 +359,7 @@ const Household = (() => {
       if (act === "new-couple") {
         const code = await Store.households.rpc("create_household_invite", { p_label: $("#hh-new-label").value.trim() || null });
         await render();
-        return showLink("#hh-admin-out", code, "Schick diesen Link an das Paar – damit gründen sie ihren eigenen Haushalt:");
+        return showLink("#hh-admin-out", code, "Schick diesen Link weiter – damit wird ein eigener Haushalt gegründet:");
       }
       if (act === "share") return showLink(b.closest(".hh-admin") ? "#hh-admin-out" : "#hh-link-out", b.dataset.code, "Einladungslink:");
       if (act === "do-share") { try { await navigator.share({ title: "Einladung zu foodies", text: "Komm zu foodies 🌿", url: b.dataset.link }); } catch {} return; }
