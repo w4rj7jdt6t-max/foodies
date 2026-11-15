@@ -128,6 +128,8 @@ const Household = (() => {
     $("#ob-name-field").hidden = mode !== "found";
     $("#ob-code-field").hidden = mode !== "none";
     $("#ob-logout").hidden = false;
+    // wer schon in einem Haushalt ist, kann die Einladung auch einfach verwerfen
+    $("#ob-skip").hidden = !(mine.length && mode !== "none");
     if (mode === "found") {
       $("#ob-emoji").textContent = "🏡";
       $("#ob-title").textContent = "Gründet euren Haushalt";
@@ -179,6 +181,13 @@ const Household = (() => {
       err.textContent = errText(ex);
       err.hidden = false;
     } finally { btn.disabled = false; }
+  });
+  $("#ob-skip").addEventListener("click", () => {
+    setPending(null);
+    $("#onboard").hidden = true;
+    document.body.classList.remove("locked");
+    const r = resolveSetup; resolveSetup = null;
+    r?.(choose());
   });
   $("#ob-logout").addEventListener("click", async () => { await Store.auth.signOut(); location.href = location.pathname; });
 
