@@ -193,9 +193,10 @@ const Household = (() => {
   async function render() {
     const body = $("#hh-body");
     const canWrite = current.role !== "viewer", isOwner = current.role === "owner";
-    let members = [], invites = [], adminData = null;
+    let members = [], invites = [], adminData = null, profs = {};
     try {
       members = await Store.households.members(current.id);
+      profs = await Profile.byIds(members.map((m) => m.user_id));
       if (canWrite) invites = await Store.households.rpc("list_invites", { p_household: current.id });
       if (isAdmin) adminData = { invites: await Store.households.rpc("list_invites", { p_household: null }), list: await Store.households.rpc("admin_households") };
     } catch (err) { console.error(err); }
@@ -215,14 +216,14 @@ const Household = (() => {
 
       <section class="card hh-card">
         <h3>Mitglieder</h3>
-        <ul class="hh-list">${members.map((m) => `<li>
-          <span class="hh-avatar">${esc((m.email || "?").charAt(0).toUpperCase())}</span>
-          <span class="hh-who"><b>${esc(m.email || "Unbekannt")}</b>${m.user_id === myId ? " <small>(du)</small>" : ""}</span>
+        <ul class="hh-list">${members.map((m) => { const p = profs[m.user_id]; return `<li>
+          <span class="avatar avatar-sm">${avatarHTML(p)}</span>
+          <span class="hh-who"><b>${esc(p?.display_name || m.email || "Unbekannt")}</b>${p ? ` <small>@${esc(p.username)}</small>` : ""}${m.user_id === myId ? " <small>(du)</small>" : ""}</span>
           ${isOwner && m.user_id !== myId
             ? `<select class="hh-role-sel" data-user="${m.user_id}" aria-label="Rolle">${Object.entries(ROLE_LABEL).map(([k, v]) => `<option value="${k}" ${k === m.role ? "selected" : ""}>${v}</option>`).join("")}</select>
                <button type="button" class="shop-del" data-hh="remove" data-user="${m.user_id}" aria-label="Entfernen">✕</button>`
             : `<span class="hh-badge">${esc(ROLE_LABEL[m.role])}</span>`}
-        </li>`).join("")}</ul>
+        </li>`; }).join("")}</ul>
         ${canWrite ? `<div class="hh-invite">
           <p class="muted">Jemanden in <b>diesen</b> Haushalt einladen – der Link gilt einmal und 14 Tage:</p>
           <div class="hh-invite-btns">

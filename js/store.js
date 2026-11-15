@@ -139,8 +139,50 @@ const Store = (() => {
     get current() { return hh; },
   };
 
+  /* --- Profile & Freunde --- */
+  const profiles = {
+    async myId() { return (await auth.session())?.user?.id || null; },
+    /** eigenes Profil (null = noch keins; wirft missingTable, wenn das Profil-SQL fehlt) */
+    async mine() {
+      const id = await this.myId();
+      if (!id) return null;
+      const { data, error } = await sb.from("profiles").select("*").eq("user_id", id).maybeSingle();
+      if (error) { if (missingTable(error)) error.missingTable = true; throw error; }
+      return data;
+    },
+    async save(p) {
+      const id = await this.myId();
+      const { data, error } = await sb.from("profiles").upsert({ user_id: id, username: p.username, display_name: p.display_name, avatar_url: p.avatar_url ?? null, avatar_path: p.avatar_path ?? null, updated_at: new Date().toISOString() }).select().single();
+      if (error) throw error;
+      return data;
+    },
+    async byIds(ids) {
+      if (!ids.length) return {};
+      const { data, error } = await sb.from("profiles").select("user_id, username, display_name, avatar_url").in("user_id", ids);
+      if (error) return {};
+      return Object.fromEntries(data.map((p) => [p.user_id, p]));
+    },
+    /** Profilbild hochladen (DataURL) → { url, path } */
+    async uploadAvatar(dataUrl) {
+      const id = await this.myId();
+      const path = `${id}/${Date.now().toString(36)}.jpg`;
+      const { error } = await sb.storage.from("avatars").upload(path, dataUrlToBlob(dataUrl), { contentType: "image/jpeg", upsert: false });
+      if (error) throw error;
+      return { url: sb.storage.from("avatars").getPublicUrl(path).data.publicUrl, path };
+    },
+    async removeAvatar(path) { if (path) await sb.storage.from("avatars").remove([path]).catch(() => {}); },
+    /** Rezepte eines Freundes (nur lesbar, wenn befreundet) */
+    async friendRecipes(userId) {
+      const ids = await rpc("friend_households", { p_user: userId });
+      if (!ids?.length) return [];
+      const { data, error } = await sb.from("recipes").select("data").in("household_id", ids).order("created_at", { ascending: true });
+      if (error) throw error;
+      return data.map((r) => r.data);
+    },
+  };
+
   return {
-    cloud, auth, onChange, activate, households, shop, plan,
+    cloud, auth, onChange, activate, households, profiles, shop, plan,
     all: () => (cloud ? cloudAll() : DB.all()),
     put: async (recipe, prev) => (cloud ? cloudPut(recipe, prev) : (await DB.put(recipe), recipe)),
     remove: (recipe) => (cloud ? cloudRemove(recipe) : DB.remove(recipe.id)),

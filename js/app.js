@@ -206,7 +206,7 @@ try {
 
 /* ================= Rezeptliste ================= */
 function renderChips() {
-  const used = new Set(state.recipes.filter((r) => r.type === state.type).map((r) => r.category));
+  const used = new Set(listRecipes().filter((r) => r.type === state.type).map((r) => r.category));
   const cats = CATEGORIES.filter((c) => used.has(c.id));
   if (state.category !== "all" && !used.has(state.category)) state.category = "all";
   $("#category-chips").innerHTML = cats.length < 2 ? "" :
@@ -224,6 +224,21 @@ function thumbHTML(r, cls = "thumb") {
   return r.image
     ? `<div class="${cls}"><img src="${r.image}" alt="" loading="lazy" width="64" height="64" /></div>`
     : `<div class="${cls} ${phClass(r)}">${recipeEmoji(r)}</div>`;
+}
+
+/** Rezepte, die die Liste gerade zeigt: eigene oder (schreibgeschützt) die eines Freundes */
+const listRecipes = () => (state.viewing ? state.viewing.recipes : state.recipes);
+
+/** Rezept eines Freundes als eigene Kopie anlegen (Foto wird mitkopiert) */
+async function copyFriendRecipe(r) {
+  closeModal($("#detail-modal"));
+  let image = null;
+  if (r.image) {
+    try { const res = await fetch(r.image); if (res.ok) image = await compressImage(await res.blob()); } catch {}
+  }
+  const { id, createdAt, updatedAt, imagePath, imageAuto, imageCredit, ...rest } = r;
+  const from = state.viewing?.user;
+  openEditor({ ...rest, image, tips: [...(r.tips || []), ...(from ? [`Rezept von ${from.display_name} (@${from.username})`] : [])] }, { draft: true });
 }
 
 /* ---------- Kochen / Backen ---------- */
@@ -264,7 +279,7 @@ function renderList() {
   renderChips();
   renderFilter();
   const q = state.search.trim().toLowerCase();
-  const ofType = state.recipes.filter((r) => r.type === state.type);
+  const ofType = listRecipes().filter((r) => r.type === state.type);
   const useTags = state.tags.size;
   const list = ofType
     .filter((r) => state.category === "all" || r.category === state.category)
@@ -272,13 +287,17 @@ function renderList() {
     .filter((r) => !q || r.title.toLowerCase().includes(q) || r.ingredients.some((i) => i.name.toLowerCase().includes(q)))
     .sort((a, b) => b.createdAt - a.createdAt);
 
-  const total = state.recipes.length, n = ofType.length;
-  $("#recipe-count").textContent = total === 0 ? "Noch leer – auf geht's!" : total === 1 ? "1 Rezept in unserer Sammlung" : `${total} Rezepte in unserer Sammlung`;
+  const total = listRecipes().length, n = ofType.length;
+  $("#recipes-title").textContent = state.viewing ? `Rezepte von ${state.viewing.user.display_name}` : "Unsere Rezepte";
+  $("#recipe-count").textContent = state.viewing
+    ? `${total} ${total === 1 ? "Rezept" : "Rezepte"} von ${state.viewing.user.display_name}`
+    : total === 0 ? "Noch leer – auf geht's!" : total === 1 ? "1 Rezept in unserer Sammlung" : `${total} Rezepte in unserer Sammlung`;
   $("#recipe-empty").hidden = n !== 0;
   $("#empty-emoji").textContent = state.type === "backen" ? "🧁" : "🥄";
   $("#empty-text").innerHTML = state.type === "backen"
     ? "<strong>Noch keine Backrezepte.</strong><br />Legt mit „＋ Neu“ euren ersten Kuchen, euer erstes Brot … an."
     : "<strong>Noch keine Kochrezepte.</strong><br />Legt mit „＋ Neu“ euer erstes Lieblingsrezept an.";
+  if (state.viewing) $("#empty-text").innerHTML = `<strong>Hier gibt es noch keine ${state.type === "backen" ? "Backrezepte" : "Kochrezepte"}.</strong>`;
 
   $("#recipe-list").innerHTML = list.length || !n ? list.map((r) => {
     const cat = catById(r.category);
@@ -309,7 +328,7 @@ $("#search").addEventListener("input", (e) => { state.search = e.target.value; r
 
 /* ================= Detailansicht ================= */
 function openDetail(id) {
-  const r = state.recipes.find((x) => x.id === id);
+  const r = listRecipes().find((x) => x.id === id);
   if (!r) return;
   state.current = r;
   state.servings = r.servings;
@@ -340,6 +359,7 @@ function renderDetail() {
         <span class="meta-chip">👩‍🍳 ${r.steps.length} Schritte</span>
       </div>
       <button type="button" class="btn btn-soft plan-btn" data-action="plan">🗓️ In den Kalender</button>
+      <button type="button" class="btn btn-primary plan-btn copy-btn" data-action="copy">📥 In unsere Rezepte übernehmen</button>
 
       <div class="detail-grid">
         <section class="card">
@@ -421,6 +441,7 @@ $("#detail-content").addEventListener("click", async (e) => {
   }
   if (act === "add-all") return Shop.addAll(state.current, state.servings / state.current.servings);
   if (act === "plan") return Plan.openDayPicker(state.current);
+  if (act === "copy") return copyFriendRecipe(state.current);
   const cart = e.target.closest(".ing-cart");
   if (cart) {
     const on = await Shop.toggleIngredient(state.current, +cart.dataset.idx, state.servings / state.current.servings);
@@ -802,6 +823,7 @@ form.addEventListener("submit", async (e) => {
   const idx = state.recipes.findIndex((r) => r.id === recipe.id);
   if (idx >= 0) state.recipes[idx] = recipe; else state.recipes.push(recipe);
   closeModal($("#editor-modal"));
+  if (state.viewing) Profile.leaveFriendView(); // kopiertes Freundesrezept → eigene Sammlung zeigen
   if (recipe.type !== state.type) { state.type = recipe.type; state.category = "all"; }
   if (!state.editing) document.querySelector('.tab[data-tab="rezepte"]').click();
   renderList();
@@ -893,7 +915,8 @@ async function offerMigration() {
 
 let cloudStarted = false;
 async function startCloud() {
-  // zuerst den Haushalt klären (ggf. Einladung annehmen / gründen)
+  // zuerst Profil (einmalig anlegen), dann Haushalt klären (ggf. Einladung annehmen / gründen)
+  if (!(await Profile.ensure())) return;
   if (!(await Household.setup())) return;
   try {
     await loadRecipes();
