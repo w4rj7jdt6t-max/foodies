@@ -7,7 +7,7 @@
 const insp = { type: "kochen", tags: new Set(), ideas: [], provider: null, sample: null, loading: false, ctl: null, started: false, lastQuery: "" };
 
 /* ---------- Filter-UI (gleiche Merkmale wie bei Rezepte) ---------- */
-const inspTagList = () => (insp.type === "backen" ? BAKE_TAGS : [...TAGS, ...INSP_EXTRA_TAGS]);
+const inspTagList = () => (insp.type === "backen" ? BAKE_TAGS : insp.source === "friends" ? TAGS : [...TAGS, ...INSP_EXTRA_TAGS]);
 document.querySelectorAll(".insp-type").forEach((b) => b.addEventListener("click", () => {
   if (insp.type === b.dataset.type) return;
   insp.type = b.dataset.type;
@@ -73,6 +73,7 @@ function renderIdeas() {
 }
 
 async function runSearch({ random = false } = {}) {
+  if (insp.source === "friends") return renderFriends(); // Freunde: lokal filtern, nichts aus dem Netz
   const q = $("#insp-search").value.trim();
   moreLinks(q);
   if (!insp.provider) return setStatus("Einen Moment, die Ideen-Suche startet gerade …", { spinner: true });
@@ -87,12 +88,12 @@ async function runSearch({ random = false } = {}) {
     const ideas = insp.provider === "claude"
       ? await claudeIdeas(q, [...insp.tags], random, ctl.signal, insp.type)
       : insp.type === "backen" ? await bakeIdeas(q, [...insp.tags], random) : await mealdbIdeas(q, [...insp.tags], random);
-    if (ctl !== insp.ctl) return; // inzwischen neue Suche gestartet
+    if (ctl !== insp.ctl || insp.source !== "online") return; // inzwischen neue Suche gestartet / zu „Freunde“ gewechselt
     if (insp.provider === "mealdb" && ideas.length) {
       setStatus("Übersetze ins Deutsche …", { spinner: true });
       // höchstens 8 s warten – sonst lieber englisch anzeigen als gar nichts
       await Promise.race([translateCards(ideas), new Promise((r) => setTimeout(r, 8000))]);
-      if (ctl !== insp.ctl) return;
+      if (ctl !== insp.ctl || insp.source !== "online") return;
     }
     insp.ideas = ideas;
     renderIdeas();
@@ -103,7 +104,7 @@ async function runSearch({ random = false } = {}) {
         ${term ? `<br /><a class="btn btn-primary insp-chefkoch" href="https://www.chefkoch.de/rs/s0/${encodeURIComponent(term)}/Rezepte.html" target="_blank" rel="noopener">🔎 „${esc(term)}“ bei Chefkoch suchen ↗</a>` : ""}`);
     }
   } catch (err) {
-    if (ctl !== insp.ctl) return;
+    if (ctl !== insp.ctl || insp.source !== "online") return;
     console.error(err);
     setStatus(`<span class="big">😕</span>${esc(errorText(err))}<br />Über die Links unten könnt ihr direkt im Netz weitersuchen.`);
   }
@@ -122,6 +123,7 @@ function errorText(err) {
 $("#insp-results").addEventListener("click", async (e) => {
   const card = e.target.closest(".idea-card");
   if (!card) return;
+  if (card.dataset.fid) return openFriendRecipe(card.dataset.fid);
   const k = +card.dataset.i;
   let idea = insp.ideas[k];
   if (idea.lazy || (insp.provider === "mealdb" && !idea.translated)) {
@@ -444,6 +446,100 @@ function mealToIdea(m, type = "kochen") {
     source: { label: m.strSource ? "Originalrezept" : "Bei TheMealDB", url },
     origin: "Aus der freien Rezept-Datenbank TheMealDB.",
   };
+}
+
+/* ================= Quelle: Freunde ================= */
+insp.source = "online";
+insp.friendRecipes = []; // [{ r, authors: [freund, …] }]
+let friendsLoaded = 0;
+
+async function loadFriendRecipes() {
+  const friends = ((await Store.households.rpc("my_friends")) || []).filter((f) => f.status === "friends");
+  insp.friendCount = friends.length;
+  const byId = new Map();
+  await Promise.all(friends.map(async (f) => {
+    try {
+      for (const r of await Store.profiles.friendRecipes(f.user_id)) {
+        const e = byId.get(r.id) || { r: normalize(r), authors: [] };
+        e.authors.push(f);
+        byId.set(r.id, e);
+      }
+    } catch (err) { console.error(err); }
+  }));
+  insp.friendRecipes = [...byId.values()].sort((a, b) => (b.r.createdAt || 0) - (a.r.createdAt || 0));
+  friendsLoaded = Date.now();
+}
+
+const authorNames = (authors) => authors.map((a) => a.display_name).join(" & ");
+
+async function renderFriends({ reload = false } = {}) {
+  const out = $("#insp-results");
+  if (reload || !friendsLoaded || Date.now() - friendsLoaded > 60000) {
+    out.innerHTML = "";
+    setStatus("Lade Rezepte eurer Freunde …", { spinner: true });
+    try { await loadFriendRecipes(); } catch (err) { console.error(err); return setStatus(`<span class="big">😕</span>Die Rezepte eurer Freunde konnten nicht geladen werden.`); }
+  }
+  if (!insp.friendCount) {
+    out.innerHTML = "";
+    return setStatus(`<span class="big">👥</span><strong>Noch keine Freunde auf foodies.</strong><br />Tippe oben auf dein rundes Profilbild → „Freunde finden“ und such nach einem @Benutzernamen.`);
+  }
+  const q = $("#insp-search").value.trim().toLowerCase();
+  const list = insp.friendRecipes
+    .filter(({ r }) => r.type === insp.type)
+    .filter(({ r }) => !insp.tags.size || [...insp.tags].every((t) => r.tags.includes(t)))
+    .filter(({ r }) => !q || r.title.toLowerCase().includes(q) || r.ingredients.some((i) => i.name.toLowerCase().includes(q)));
+  setStatus(list.length ? "" : `<span class="big">🤷</span>Keine passenden ${insp.type === "backen" ? "Backrezepte" : "Kochrezepte"} bei euren Freunden${q || insp.tags.size ? " – probiert weniger Filter" : ""}.`);
+  out.innerHTML = list.map(({ r, authors }) => `
+    <li><button class="idea-card friend-card" data-fid="${esc(r.id)}">
+      ${r.image ? `<div class="idea-img"><img src="${esc(r.image)}" alt="" loading="lazy" width="400" height="300" /></div>` : `<div class="idea-img ${phClass(r)}">${recipeEmoji(r)}</div>`}
+      <div class="idea-body">
+        <p class="idea-title">${esc(r.title)}</p>
+        <span class="friend-by"><span class="avatar avatar-xs">${avatarHTML(authors[0])}</span>${esc(authorNames(authors))}</span>
+        ${r.tags.length ? `<span class="idea-tags">${r.tags.map((t) => tagById(t)?.emoji || "").join(" ")}</span>` : ""}
+      </div>
+    </button></li>`).join("");
+}
+
+function openFriendRecipe(id) {
+  const e = insp.friendRecipes.find((x) => x.r.id === id);
+  if (!e) return;
+  const names = authorNames(e.authors), first = e.authors[0];
+  openRecipeReadOnly(e.r, names, { note: `👤 Von ${names} · nur ansehen`, attribution: `Rezept von ${first.display_name} (@${first.username})` });
+}
+
+function setSource(src) {
+  insp.source = src;
+  // laufende Online-Suche verwerfen, damit ihre Ergebnisse nicht später die Freundesrezepte überschreiben
+  insp.ctl?.abort();
+  insp.ctl = { abort() {} };
+  try { localStorage.setItem("foodies-insp-src", src); } catch {}
+  document.querySelectorAll(".insp-src").forEach((b) => { b.classList.toggle("is-active", b.dataset.src === src); b.setAttribute("aria-selected", b.dataset.src === src); });
+  $("#panel-inspiration").classList.toggle("src-friends", src === "friends");
+  insp.tags.clear();
+  renderInspFilter();
+  if (src === "friends") {
+    $("#insp-source").textContent = "Rezepte eurer Freunde – zum Ansehen und Übernehmen";
+    $("#insp-search").placeholder = "In den Rezepten eurer Freunde suchen …";
+    renderFriends({ reload: true });
+  } else {
+    $("#insp-source").textContent = insp.provider === "claude" ? "Rezeptideen von Claude – plus Links zum Weitersuchen im Netz" : "Rezeptideen aus dem Internet, automatisch auf Deutsch – plus Chefkoch & Google";
+    $("#insp-search").placeholder = insp.type === "backen" ? "z. B. Apfelkuchen, Brownies …" : "z. B. Lasagne, Auflauf …";
+    insp.ideas = [];
+    $("#insp-results").innerHTML = "";
+    runSearch({ random: !$("#insp-search").value.trim() });
+  }
+}
+document.querySelectorAll(".insp-src").forEach((b) => b.addEventListener("click", () => { if (insp.source !== b.dataset.src) setSource(b.dataset.src); }));
+// Freunde: beim Tippen sofort filtern
+$("#insp-search").addEventListener("input", () => { if (insp.source === "friends") renderFriends(); });
+
+/** von außen aufgerufen, sobald klar ist, ob Profile/Freunde verfügbar sind */
+function enableFriendsSource() {
+  if (!Store.cloud || typeof Profile === "undefined" || !Profile.available || !Profile.me) return;
+  $("#insp-src-tabs").hidden = false;
+  let saved = null;
+  try { saved = localStorage.getItem("foodies-insp-src"); } catch {}
+  if (saved === "friends") setSource("friends");
 }
 
 /* ================= Start ================= */

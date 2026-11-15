@@ -230,10 +230,12 @@ function thumbHTML(r, cls = "thumb") {
 const listRecipes = () => (state.viewing ? state.viewing.recipes : state.recipes);
 
 /** Rezept aus einem anderen Haushalt (bzw. Kalender-Kopie) ansehen – ohne Bearbeiten, mit „Übernehmen“ */
-function openRecipeReadOnly(r, fromName) {
+function openRecipeReadOnly(r, fromName, { note = null, attribution = null } = {}) {
   state.current = normalize({ ...r, tags: [...(r.tags || [])] });
   state.servings = r.servings || 2;
   state.readOnlyFrom = fromName || "einem anderen Haushalt";
+  state.readOnlyNote = note || `🏡 Aus „${state.readOnlyFrom}“ · nur ansehen`;
+  state.readOnlyAttribution = attribution;
   renderDetail();
   $("#detail-modal").classList.add("ro");
   openModal($("#detail-modal"));
@@ -249,7 +251,7 @@ async function copyFriendRecipe(r) {
   const { id, createdAt, updatedAt, imagePath, imageAuto, imageCredit, ...rest } = r;
   const from = state.viewing?.user;
   const { _from, ...clean } = rest;
-  const note = from ? `Rezept von ${from.display_name} (@${from.username})` : state.readOnlyFrom ? `Übernommen aus „${state.readOnlyFrom}“` : null;
+  const note = from ? `Rezept von ${from.display_name} (@${from.username})` : state.readOnlyAttribution || (state.readOnlyFrom ? `Übernommen aus „${state.readOnlyFrom}“` : null);
   openEditor({ ...clean, image, tips: [...(r.tips || []), ...(note ? [note] : [])] }, { draft: true });
 }
 
@@ -364,7 +366,7 @@ function renderDetail() {
     </div>
     <div class="detail-body">
       <h2 class="detail-title">${esc(r.title)}</h2>
-      ${state.readOnlyFrom ? `<p class="ro-note">🏡 Aus „${esc(state.readOnlyFrom)}“ · nur ansehen</p>` : ""}
+      ${state.readOnlyFrom ? `<p class="ro-note">${esc(state.readOnlyNote || "")}</p>` : ""}
       <div class="meta-chips">
         <span class="meta-chip">${TYPES[r.type].emoji} ${TYPES[r.type].label}</span>
         <span class="meta-chip">${cat.emoji} ${esc(cat.label)}</span>
@@ -946,6 +948,7 @@ async function startCloud() {
   }
   Shop.load();
   Plan.load();
+  if (typeof enableFriendsSource === "function") enableFriendsSource();
   offerMigration();
   removeAutoImages();
 }
