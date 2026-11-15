@@ -834,6 +834,7 @@ $("#login-form").addEventListener("submit", async (e) => {
     await Store.auth.signIn($("#login-email").value.trim(), $("#login-password").value);
     $("#login-password").value = "";
     showLogin(false);
+    keepStorage();
     await startCloud();
   } catch (ex) {
     err.textContent = /invalid/i.test(ex?.message || "") ? "E-Mail oder Passwort stimmt nicht." : "Anmelden hat nicht geklappt. Seid ihr online?";
@@ -849,6 +850,9 @@ $("#btn-logout").addEventListener("click", async () => {
   renderList();
   showLogin(true);
 });
+
+/** Browser bitten, die gespeicherte Anmeldung nicht automatisch zu löschen (wo unterstützt) */
+function keepStorage() { try { navigator.storage?.persist?.().catch(() => {}); } catch {} }
 
 /* --- Lokale Rezepte in die gemeinsame Sammlung übernehmen --- */
 async function offerMigration() {
@@ -901,6 +905,7 @@ document.addEventListener("DOMContentLoaded", async function init() {
     const session = await Store.auth.session().catch(() => null);
     if (!session) return showLogin(true);
     showLogin(false);
+    keepStorage();
     return startCloud();
   }
   try {
