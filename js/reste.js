@@ -4,6 +4,7 @@
  */
 const Reste = (() => {
   let pantry = []; // [{ name, emoji }]
+  const pantryId = () => (Store.households?.current ? `pantry-${Store.households.current}` : "pantry");
   let useStaples = true;
   const rs = { type: "kochen", tags: new Set() };
   try { useStaples = localStorage.getItem("foodies-staples") !== "0"; } catch {}
@@ -11,7 +12,8 @@ const Reste = (() => {
 
   /* ---------- Daten ---------- */
   function onData(extras) {
-    const doc = extras.find((x) => x.kind === "pantry");
+    // pro Haushalt ein eigener Kühlschrank-Eintrag (älterer Eintrag „pantry“ wird weiter gelesen)
+    const doc = extras.find((x) => x.id === pantryId()) || extras.find((x) => x.kind === "pantry");
     pantry = doc?.items || [];
     render();
   }
@@ -19,7 +21,7 @@ const Reste = (() => {
   function persist() {
     clearTimeout(saveTimer);
     // kurz sammeln, damit schnelles Antippen nicht viele Speichervorgänge auslöst
-    saveTimer = setTimeout(() => Shop.putExtra({ id: "pantry", kind: "pantry", items: pantry, updatedAt: Date.now() }), 400);
+    saveTimer = setTimeout(() => Shop.putExtra({ id: pantryId(), kind: "pantry", items: pantry, updatedAt: Date.now() }), 400);
   }
   const pantryKeys = () => new Set(pantry.map((p) => ingredientKey(p.name)));
   const has = (name) => pantryKeys().has(ingredientKey(name));

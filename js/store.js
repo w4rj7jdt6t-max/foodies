@@ -8,6 +8,8 @@ const Store = (() => {
   const cloud = !!(cfg.supabaseUrl && cfg.supabaseAnonKey && window.supabase?.createClient);
   const sb = cloud ? window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey) : null;
   const BUCKET = "recipe-images";
+  let hh = null; // aktueller Haushalt (nur Cloud)
+  const scoped = (q) => (hh ? q.eq("household_id", hh) : q);
 
   function dataUrlToBlob(dataUrl) {
     const [head, b64] = dataUrl.split(",");
@@ -23,7 +25,7 @@ const Store = (() => {
 
   /* --- Cloud --- */
   async function cloudAll() {
-    const { data, error } = await sb.from("recipes").select("data").order("created_at", { ascending: true });
+    const { data, error } = await scoped(sb.from("recipes").select("data")).order("created_at", { ascending: true });
     if (error) throw error;
     return data.map((row) => row.data);
   }
@@ -32,8 +34,9 @@ const Store = (() => {
   async function cloudPut(recipe, prev = null) {
     let r = { ...recipe, imagePath: prev?.imagePath || recipe.imagePath || null };
     if (r.image && r.image.startsWith("data:")) {
-      const path = `${r.id}/${Date.now().toString(36)}.jpg`;
-      const { error } = await sb.storage.from(BUCKET).upload(path, dataUrlToBlob(r.image), { contentType: "image/jpeg", upsert: true });
+      // neue Bilder liegen im Ordner des Haushalts; jeder Upload bekommt einen neuen Namen (kein Überschreiben nötig)
+      const path = `${hh ? hh + "/" : ""}${r.id}/${Date.now().toString(36)}.jpg`;
+      const { error } = await sb.storage.from(BUCKET).upload(path, dataUrlToBlob(r.image), { contentType: "image/jpeg", upsert: false });
       if (error) throw error;
       const url = sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
       if (r.imagePath && r.imagePath !== path) await removeImage(r.imagePath);
@@ -45,7 +48,7 @@ const Store = (() => {
       await removeImage(r.imagePath); // durch fremdes Bild (z. B. aus Inspiration) ersetzt
       r.imagePath = null;
     }
-    const { error } = await sb.from("recipes").upsert({ id: r.id, data: r, updated_at: new Date().toISOString() });
+    const { error } = await sb.from("recipes").upsert({ id: r.id, data: r, updated_at: new Date().toISOString(), ...(hh ? { household_id: hh } : {}) });
     if (error) throw error;
     return r;
   }
@@ -56,21 +59,34 @@ const Store = (() => {
     await removeImage(recipe.imagePath);
   }
 
+  // Live-Abos erst starten, wenn der Haushalt feststeht (dann nur dessen Änderungen)
+  const listeners = [];
+  let active = false;
+  function subscribe({ cb, table }) {
+    let t;
+    sb.channel(`${table}-${hh || "all"}`)
+      .on("postgres_changes", { event: "*", schema: "public", table, ...(hh ? { filter: `household_id=eq.${hh}` } : {}) }, () => { clearTimeout(t); t = setTimeout(cb, 300); })
+      .subscribe();
+  }
   function onChange(cb, table = "recipes") {
     if (!cloud) return;
-    let t;
-    sb.channel(table + "-sync")
-      .on("postgres_changes", { event: "*", schema: "public", table }, () => { clearTimeout(t); t = setTimeout(cb, 300); })
-      .subscribe();
+    const l = { cb, table };
+    listeners.push(l);
+    if (active) subscribe(l);
+  }
+  /** Haushalt festlegen und Live-Abos starten (bei Wechsel lädt die App neu) */
+  function activate(householdId) {
+    hh = householdId || null;
+    if (!active) { active = true; listeners.forEach(subscribe); }
   }
 
   /* --- Einfache Sammlungen ohne Bilder (Einkaufsliste, Kalender) --- */
   const missingTable = (e) => /PGRST205|42P01|Could not find the table|does not exist/i.test((e?.code || "") + " " + (e?.message || ""));
   const check = ({ error }) => { if (error) { if (missingTable(error)) error.missingTable = true; throw error; } };
-  const row = (item) => ({ id: item.id, data: item, updated_at: new Date().toISOString() });
+  const row = (item) => ({ id: item.id, data: item, updated_at: new Date().toISOString(), ...(hh ? { household_id: hh } : {}) });
   const simple = (table, localStore) => cloud ? {
     all: async () => {
-      const res = await sb.from(table).select("data").order("created_at", { ascending: true });
+      const res = await scoped(sb.from(table).select("data")).order("created_at", { ascending: true });
       check(res);
       return res.data.map((r) => r.data);
     },
@@ -90,11 +106,41 @@ const Store = (() => {
       const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
     },
+    /** Registrierung (nur mit Einladung sinnvoll). Gibt zurück, ob direkt eine Sitzung besteht. */
+    async signUp(email, password) {
+      const { data, error } = await sb.auth.signUp({ email, password });
+      if (error) throw error;
+      return !!data.session;
+    },
     async signOut() { await sb.auth.signOut(); },
   };
 
+  /* --- Haushalte --- */
+  async function rpc(fn, args = {}) {
+    const { data, error } = await sb.rpc(fn, args);
+    if (error) throw error;
+    return data;
+  }
+  const households = {
+    /** eigene Mitgliedschaften: [{ id, name, role }] */
+    async mine() {
+      const s = await auth.session();
+      if (!s) return [];
+      const { data, error } = await sb.from("household_members").select("household_id, role, households(name, subtitle)").eq("user_id", s.user.id);
+      if (error) { if (missingTable(error)) error.missingTable = true; throw error; }
+      return data.map((m) => ({ id: m.household_id, role: m.role, name: m.households?.name || "Haushalt", subtitle: m.households?.subtitle || "" }));
+    },
+    async members(id) {
+      const { data, error } = await sb.from("household_members").select("user_id, role, email, joined_at").eq("household_id", id).order("joined_at");
+      if (error) throw error;
+      return data;
+    },
+    rpc,
+    get current() { return hh; },
+  };
+
   return {
-    cloud, auth, onChange, shop, plan,
+    cloud, auth, onChange, activate, households, shop, plan,
     all: () => (cloud ? cloudAll() : DB.all()),
     put: async (recipe, prev) => (cloud ? cloudPut(recipe, prev) : (await DB.put(recipe), recipe)),
     remove: (recipe) => (cloud ? cloudRemove(recipe) : DB.remove(recipe.id)),

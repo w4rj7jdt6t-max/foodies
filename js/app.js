@@ -829,26 +829,38 @@ $("#login-form").addEventListener("submit", async (e) => {
   const err = $("#login-error"), btn = $("#login-submit");
   err.hidden = true;
   btn.disabled = true;
-  btn.textContent = "Melde an …";
+  const signup = Household.signupMode;
+  btn.textContent = signup ? "Registriere …" : "Melde an …";
   try {
-    await Store.auth.signIn($("#login-email").value.trim(), $("#login-password").value);
+    const email = $("#login-email").value.trim(), pw = $("#login-password").value;
+    if (signup) {
+      if (pw.length < 6) throw { code: "short" };
+      const hasSession = await Store.auth.signUp(email, pw);
+      if (!hasSession) throw { code: "confirm" };
+    } else {
+      await Store.auth.signIn(email, pw);
+    }
     $("#login-password").value = "";
     showLogin(false);
     keepStorage();
     await startCloud();
   } catch (ex) {
-    err.textContent = /invalid/i.test(ex?.message || "") ? "E-Mail oder Passwort stimmt nicht." : "Anmelden hat nicht geklappt. Seid ihr online?";
+    const msg = String(ex?.message || "");
+    err.textContent = ex?.code === "short" || /password.*(6|short|weak)/i.test(msg) ? "Das Passwort braucht mindestens 6 Zeichen."
+      : ex?.code === "confirm" ? "Fast geschafft: Bitte bestätige zuerst die E-Mail, die wir dir geschickt haben, und melde dich dann an."
+      : /already|registered|exists/i.test(msg) ? "Für diese E-Mail gibt es schon ein Konto – bitte unten auf „anmelden“ tippen."
+      : /signups? not allowed|disabled/i.test(msg) ? "Registrieren ist gerade nicht freigeschaltet. Bitte gib der Person Bescheid, die dich eingeladen hat."
+      : /invalid/i.test(msg) ? "E-Mail oder Passwort stimmt nicht."
+      : "Das hat nicht geklappt. Seid ihr online?";
     err.hidden = false;
   } finally {
     btn.disabled = false;
-    btn.textContent = "Anmelden";
+    btn.textContent = Household.signupMode ? "Registrieren" : "Anmelden";
   }
 });
 $("#btn-logout").addEventListener("click", async () => {
   await Store.auth.signOut();
-  state.recipes = [];
-  renderList();
-  showLogin(true);
+  location.href = location.pathname; // sauber neu starten (auch Haushalt zurücksetzen)
 });
 
 /** Browser bitten, die gespeicherte Anmeldung nicht automatisch zu löschen (wo unterstützt) */
@@ -881,6 +893,8 @@ async function offerMigration() {
 
 let cloudStarted = false;
 async function startCloud() {
+  // zuerst den Haushalt klären (ggf. Einladung annehmen / gründen)
+  if (!(await Household.setup())) return;
   try {
     await loadRecipes();
   } catch (err) {
@@ -903,7 +917,7 @@ document.addEventListener("DOMContentLoaded", async function init() {
   if (Store.cloud) {
     renderList();
     const session = await Store.auth.session().catch(() => null);
-    if (!session) return showLogin(true);
+    if (!session) { await Household.prepareLogin(); return showLogin(true); }
     showLogin(false);
     keepStorage();
     return startCloud();
