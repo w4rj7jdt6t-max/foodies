@@ -111,6 +111,12 @@ const Household = (() => {
     $("#onboard").hidden = true;
     $("#btn-household").hidden = false;
     $("#hh-name").textContent = current.name;
+    const btn = $("#btn-household"), photo = $("#hh-photo");
+    btn.classList.toggle("has-photo", !!current.image_url);
+    document.body.classList.toggle("has-hh-photo", !!current.image_url);
+    photo.hidden = !current.image_url;
+    photo.innerHTML = current.image_url ? `<img src="${esc(current.image_url)}" alt="" />` : "";
+    btn.setAttribute("aria-label", `Haushalt: ${current.name}`);
     $("#brand-sub").textContent = current.subtitle || "by toem";
     const ro = current.role === "viewer";
     document.body.classList.toggle("readonly", ro);
@@ -223,6 +229,14 @@ const Household = (() => {
       </form>` : ""}
 
       <section class="card hh-card">
+        ${isOwner ? `<div class="hh-photo-edit">
+          <label class="ps-avatar" title="Haushaltsbild ändern">
+            <input type="file" accept="image/*" id="hh-photo-input" hidden />
+            <span class="avatar avatar-xl hh-photo-big" id="hh-photo-big">${current.image_url ? `<img src="${esc(current.image_url)}" alt="" />` : "🏡"}</span>
+            <span class="ps-avatar-hint">📷 ${current.image_url ? "Haushaltsbild ändern" : "Haushaltsbild hinzufügen"}</span>
+          </label>
+          ${current.image_url ? `<button type="button" class="link-btn" data-hh="photo-remove">Bild entfernen</button>` : ""}
+        </div>` : current.image_url ? `<div class="hh-photo-edit"><span class="avatar avatar-xl hh-photo-big"><img src="${esc(current.image_url)}" alt="" /></span></div>` : ""}
         <h3>${esc(current.name)}</h3>
         <p class="muted hh-role">Deine Rolle: <b>${esc(ROLE_LABEL[current.role])}</b></p>
         ${isOwner ? `<div class="hh-edit">
@@ -361,6 +375,14 @@ const Household = (() => {
         catch { const i = b.closest(".hh-link").querySelector("input"); i.select(); toast("Link markiert – jetzt kopieren"); }
         return;
       }
+      if (act === "photo-remove") {
+        if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Wirklich entfernen?"; setTimeout(() => { if (b.isConnected) render(); }, 3000); return; }
+        await Store.households.rpc("set_household_image", { p_household: current.id, p_url: null, p_path: null });
+        const old = current.image_path;
+        setImage(null, null);
+        if (old) Store.households.removeFiles("recipe-images", [old]).catch(() => {});
+        toast("Haushaltsbild entfernt"); return render();
+      }
       if (act === "del-open") return openDelete(b.dataset.id, b.dataset.name);
       if (act === "del-cancel") return render();
       if (act === "del-go") {
@@ -388,6 +410,28 @@ const Household = (() => {
       toast(`🏡 „${name}“ angelegt`);
       setTimeout(() => location.reload(), 600);
     } catch (ex) { toast(errText(ex)); }
+  });
+  function setImage(url, path) {
+    Object.assign(current, { image_url: url, image_path: path });
+    const m = mine.find((h) => h.id === current.id); if (m) Object.assign(m, { image_url: url, image_path: path });
+    applyCurrent();
+  }
+  $("#hh-body").addEventListener("change", async (e) => {
+    if (e.target.id !== "hh-photo-input") return;
+    const f = e.target.files[0]; e.target.value = "";
+    if (!f) return;
+    try {
+      const dataUrl = await Cropper.open(f);
+      if (!dataUrl) return; // abgebrochen
+      $("#hh-photo-big").innerHTML = `<img src="${dataUrl}" alt="" />`;
+      const u = await Store.households.uploadImage(current.id, dataUrl);
+      try { await Store.households.rpc("set_household_image", { p_household: current.id, p_url: u.url, p_path: u.path }); }
+      catch (ex) { Store.households.removeFiles("recipe-images", [u.path]).catch(() => {}); throw ex; }
+      const old = current.image_path;
+      setImage(u.url, u.path);
+      if (old) Store.households.removeFiles("recipe-images", [old]).catch(() => {});
+      toast("Haushaltsbild gespeichert ✓"); render();
+    } catch (ex) { toast(errText(ex)); render(); }
   });
   $("#hh-body").addEventListener("change", async (e) => {
     if (e.target.classList.contains("hh-role-sel")) {
