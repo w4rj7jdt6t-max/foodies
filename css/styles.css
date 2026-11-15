@@ -764,6 +764,15 @@ body.locked .tabs, body.locked main { display: none; }
 .hh-link-input { font-size: 13px !important; }
 .hh-open { margin: 6px 0 0; font-size: 13px; }
 .hh-mini { padding: 4px 10px; font-size: 12.5px; }
+.hh-list li.hh-del { display: block; background: #fff4f2; border: 1.5px solid #f3c4bb; padding: 12px 14px; }
+.hh-del p { margin: 0 0 6px; font-size: 14px; }
+.hh-del-members { margin: 4px 0 10px; padding-left: 18px; font-size: 14px; }
+.hh-list .hh-del-members li { display: list-item; background: none; padding: 2px 0; border-radius: 0; }
+.hh-del-members small { color: var(--ink-soft); }
+.hh-del-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; margin-bottom: 10px; }
+.hh-del-check input { margin-top: 3px; accent-color: var(--terracotta); }
+.btn-danger { background: var(--terracotta); color: #fff; }
+.btn-danger.armed { filter: brightness(.85); }
 .hh-leave { align-self: flex-start; color: #a4472a; }
 .hh-leave.armed, .shop-del.armed { color: #fff; background: var(--terracotta); border-radius: var(--pill); padding: 4px 10px; text-decoration: none; width: auto; }
 .hh-row { display: flex; gap: 8px; flex-wrap: wrap; }

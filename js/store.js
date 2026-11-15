@@ -136,6 +136,12 @@ const Store = (() => {
       return data;
     },
     rpc,
+    /** Dateien entfernen (Verwalter beim Löschen eines Haushalts) */
+    async removeFiles(bucket, paths) {
+      if (!paths?.length) return;
+      const { error } = await sb.storage.from(bucket).remove(paths);
+      if (error) throw error;
+    },
     /** Rezepte bestimmter (eigener) Haushalte: [{ data, household_id }] */
     async recipesOf(ids) {
       if (!ids.length) return [];

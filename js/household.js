@@ -270,8 +270,48 @@ const Household = (() => {
           <button type="button" class="btn btn-ghost hh-mini" data-hh="share" data-code="${i.code}">Link</button>
           <button type="button" class="shop-del" data-hh="revoke" data-code="${i.code}" aria-label="Zurückziehen">✕</button></li>`).join("")}</ul>` : ""}
         <p class="muted hh-open">Haushalte in foodies:</p>
-        <ul class="hh-list">${adminData.list.map((h) => `<li><span class="hh-avatar">🏡</span><span class="hh-who"><b>${esc(h.name)}</b><small> · ${h.members} Mitgl. · ${h.recipes} Rezepte</small></span></li>`).join("")}</ul>
+        <ul class="hh-list">${adminData.list.map((h) => `<li class="hh-adm-item" data-id="${h.id}"><span class="hh-avatar">🏡</span><span class="hh-who"><b>${esc(h.name)}</b><small> · ${h.members} Mitgl. · ${h.recipes} ${h.recipes == 1 ? "Rezept" : "Rezepte"}</small></span>
+          ${h.id === current.id ? `<span class="hh-badge">aktuell</span>` : `<button type="button" class="shop-del" data-hh="del-open" data-id="${h.id}" data-name="${esc(h.name)}" aria-label="Haushalt löschen" title="Haushalt löschen">🗑️</button>`}
+        </li>`).join("")}</ul>
+        <p class="muted pf-note">Den Haushalt, in dem du gerade bist, kannst du nicht löschen – wechsle dafür oben in einen anderen.</p>
       </section>` : ""}`;
+  }
+
+  /* --- Verwalter: Haushalt löschen --- */
+  let delInfo = null;
+  async function openDelete(id, name) {
+    const li = $(`#hh-body .hh-adm-item[data-id="${id}"]`);
+    $("#hh-body .hh-del")?.remove();
+    const pv = await Store.households.rpc("admin_household_preview", { p_household: id });
+    delInfo = { id, name, pv, amMember: mine.some((h) => h.id === id) };
+    const gone = pv.members.filter((m) => m.deletable);
+    const box = document.createElement("li");
+    box.className = "hh-del";
+    box.innerHTML = `
+      <p><b>„${esc(name)}“ endgültig löschen?</b></p>
+      <p class="muted">Weg sind dann: ${pv.recipes} ${pv.recipes === 1 ? "Rezept" : "Rezepte"}, Einkaufsliste, Kalender, offene Einladungen${pv.images.length ? ` und ${pv.images.length} ${pv.images.length === 1 ? "Bild" : "Bilder"}` : ""}.</p>
+      <ul class="hh-del-members">${pv.members.map((m) => `<li>${esc(m.name || m.email || "Unbekannt")}${m.email && m.name ? ` <small>${esc(m.email)}</small>` : ""}
+        – <small>${m.user_id === myId ? "das bist du, dein Konto bleibt" : m.deletable ? "nur in diesem Haushalt" : "auch in anderen Haushalten, Konto bleibt"}</small></li>`).join("") || "<li><small>keine Mitglieder</small></li>"}</ul>
+      ${gone.length ? `<label class="hh-del-check"><input type="checkbox" id="hh-del-accounts" ${delInfo.amMember ? "" : "checked"} />
+        Auch ${gone.length === 1 ? "das Konto löschen, das nur hier dabei ist" : `die ${gone.length} Konten löschen, die nur hier dabei sind`} (Anmeldung, Profil, Freundschaften)</label>` : ""}
+      <div class="hh-invite-btns">
+        <button type="button" class="btn btn-danger" data-hh="del-go">Endgültig löschen</button>
+        <button type="button" class="btn btn-ghost" data-hh="del-cancel">Abbrechen</button>
+      </div>`;
+    li.after(box);
+  }
+  async function doDelete(b) {
+    const { id, name, pv, amMember } = delInfo;
+    const accounts = !!$("#hh-del-accounts")?.checked;
+    b.disabled = true; b.textContent = "Lösche …";
+    // erst die Bilder (die Datenbank kann Dateien nicht selbst entfernen), dann den Haushalt
+    await Store.households.removeFiles("recipe-images", pv.images).catch((e) => console.warn(e));
+    if (accounts) await Store.households.removeFiles("avatars", pv.members.filter((m) => m.deletable).flatMap((m) => m.avatars)).catch((e) => console.warn(e));
+    const n = await Store.households.rpc("admin_delete_household", { p_household: id, p_delete_accounts: accounts });
+    toast(`🗑️ „${name}“ gelöscht${n ? ` · ${n} ${n === 1 ? "Konto" : "Konten"}` : ""}`);
+    if (amMember) { mine = mine.filter((h) => h.id !== id); applyCurrent(); }
+    delInfo = null;
+    return render();
   }
 
   function showLink(target, code, text) {
@@ -320,6 +360,12 @@ const Household = (() => {
         try { await navigator.clipboard.writeText(b.dataset.link); toast("Link kopiert 📋"); }
         catch { const i = b.closest(".hh-link").querySelector("input"); i.select(); toast("Link markiert – jetzt kopieren"); }
         return;
+      }
+      if (act === "del-open") return openDelete(b.dataset.id, b.dataset.name);
+      if (act === "del-cancel") return render();
+      if (act === "del-go") {
+        if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Wirklich? Nochmal tippen"; return; }
+        return doDelete(b);
       }
       if (act === "revoke") { await Store.households.rpc("revoke_invite", { p_code: b.dataset.code }); toast("Einladung zurückgezogen"); return render(); }
       if (act === "remove" || act === "leave") {
