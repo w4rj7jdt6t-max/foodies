@@ -33,13 +33,16 @@ const Store = (() => {
   /** speichert ein Rezept; lädt ein neues Bild hoch und räumt das alte auf. Gibt das gespeicherte Rezept zurück. */
   async function cloudPut(recipe, prev = null) {
     let r = { ...recipe, imagePath: prev?.imagePath || recipe.imagePath || null };
+    const original = r.imageOriginal; // neu gewähltes Foto in voller Größe (zum späteren Nachjustieren)
+    delete r.imageOriginal;
     if (r.image && r.image.startsWith("data:")) {
       // neue Bilder liegen im Ordner des Haushalts; jeder Upload bekommt einen neuen Namen (kein Überschreiben nötig)
       const path = `${hh ? hh + "/" : ""}${r.id}/${Date.now().toString(36)}.jpg`;
       const { error } = await sb.storage.from(BUCKET).upload(path, dataUrlToBlob(r.image), { contentType: "image/jpeg", upsert: false });
       if (error) throw error;
       const url = sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-      if (r.imagePath && r.imagePath !== path) await removeImage(r.imagePath);
+      // altes Ausschnitt-Bild aufräumen – außer es dient jetzt als Original
+      if (r.imagePath && r.imagePath !== path && r.imagePath !== r.imageSrc?.path) await removeImage(r.imagePath);
       r = { ...r, image: url, imagePath: path };
     } else if (!r.image && r.imagePath) {
       await removeImage(r.imagePath); // Bild wurde entfernt
@@ -48,6 +51,18 @@ const Store = (() => {
       await removeImage(r.imagePath); // durch fremdes Bild (z. B. aus Inspiration) ersetzt
       r.imagePath = null;
     }
+    if (original && r.image) {
+      try {
+        const path = `${hh ? hh + "/" : ""}${r.id}/${Date.now().toString(36)}-orig.jpg`;
+        const { error } = await sb.storage.from(BUCKET).upload(path, dataUrlToBlob(original), { contentType: "image/jpeg", upsert: false });
+        if (error) throw error;
+        r.imageSrc = { url: sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl, path, crop: r.imageSrc?.crop || null };
+      } catch (err) { console.warn("Original nicht gespeichert", err); r.imageSrc = null; }
+    }
+    if (!r.image || (r.imageSrc && !r.imageSrc.url)) r.imageSrc = null;
+    // ersetztes/entferntes Original aufräumen
+    const oldSrc = prev?.imageSrc?.path;
+    if (oldSrc && oldSrc !== r.imageSrc?.path && oldSrc !== r.imagePath) await removeImage(oldSrc);
     const { error } = await sb.from("recipes").upsert({ id: r.id, data: r, updated_at: new Date().toISOString(), ...(hh ? { household_id: hh } : {}) });
     if (error) throw error;
     return r;
@@ -57,6 +72,7 @@ const Store = (() => {
     const { error } = await sb.from("recipes").delete().eq("id", recipe.id);
     if (error) throw error;
     await removeImage(recipe.imagePath);
+    if (recipe.imageSrc?.path && recipe.imageSrc.path !== recipe.imagePath) await removeImage(recipe.imageSrc.path);
   }
 
   // Live-Abos erst starten, wenn der Haushalt feststeht (dann nur dessen Änderungen)
@@ -212,7 +228,15 @@ const Store = (() => {
   return {
     cloud, auth, onChange, activate, households, profiles, shop, plan,
     all: () => (cloud ? cloudAll() : DB.all()),
-    put: async (recipe, prev) => (cloud ? cloudPut(recipe, prev) : (await DB.put(recipe), recipe)),
+    put: async (recipe, prev) => {
+      if (cloud) return cloudPut(recipe, prev);
+      // lokal: Original direkt als DataURL am Rezept
+      const { imageOriginal, ...r } = recipe;
+      if (imageOriginal && r.image) r.imageSrc = { url: imageOriginal, crop: r.imageSrc?.crop || null };
+      if (!r.image || (r.imageSrc && !r.imageSrc.url)) r.imageSrc = null;
+      await DB.put(r);
+      return r;
+    },
     remove: (recipe) => (cloud ? cloudRemove(recipe) : DB.remove(recipe.id)),
     localAll: () => DB.all().catch(() => []),
   };

@@ -164,7 +164,7 @@ const Plan = (() => {
     // Rezept aus einem anderen Haushalt → Kopie mitspeichern, damit die Mitglieder HIER es sehen
     // (ohne Zugriff auf den anderen Haushalt zu bekommen)
     if (!state.recipes.some((r) => r.id === recipe.id)) {
-      const { _from, imagePath, imageAuto, imageCredit, autoImageCheckedAt, ...snap } = recipe;
+      const { _from, imagePath, imageSrc, imageAuto, imageCredit, autoImageCheckedAt, ...snap } = recipe;
       entry.snapshot = snap;
       if (friend) entry.fromFriend = { name: friend.name, attribution: friend.attribution || "" };
       else entry.fromHousehold = _from || "";

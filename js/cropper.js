@@ -1,5 +1,6 @@
-/* ================= Bild zuschneiden (rund, für Profilbilder) =================
- * Cropper.open(quelle, { crop }) → Promise<{ image, crop, original } | null>
+/* ================= Bild zuschneiden (rund für Profilbilder, 4:3 für Rezeptfotos) =================
+ * Cropper.open(quelle, { crop, aspect }) → Promise<{ image, crop, original } | null>
+ *   aspect: Seitenverhältnis (Breite/Höhe); 1 = rund (Profil/Haushalt), z. B. 4/3 = rechteckig (Rezept)
  *   quelle: Datei (neu gewählt) oder URL (bestehendes Original → Ausschnitt erneut bearbeiten)
  *   crop:   gespeicherter Ausschnitt { cx, cy, z } – Mittelpunkt (0–1) und Zoom
  *   image:  der Ausschnitt als JPEG-DataURL (512×512)
@@ -13,14 +14,14 @@ const Cropper = (() => {
   const view = document.getElementById("crop-view");
   const img = document.getElementById("crop-img");
   const zoom = document.getElementById("crop-zoom");
-  let S = 280, nw = 0, nh = 0, minS = 1, s = 1, x = 0, y = 0, resolve = null, url = null;
+  let W = 280, H = 280, OW = OUT, OH = OUT, nw = 0, nh = 0, minS = 1, s = 1, x = 0, y = 0, resolve = null, url = null;
   const pointers = new Map();
   let pinch = null;
 
   function clamp() {
     s = Math.min(Math.max(s, minS), minS * 5);
-    x = Math.min(0, Math.max(S - nw * s, x));
-    y = Math.min(0, Math.max(S - nh * s, y));
+    x = Math.min(0, Math.max(W - nw * s, x));
+    y = Math.min(0, Math.max(H - nh * s, y));
   }
   function paint() {
     clamp();
@@ -28,7 +29,7 @@ const Cropper = (() => {
     zoom.value = String(Math.round(((s / minS) - 1) * 100));
   }
   /** um einen Punkt (px, py) im Ausschnitt zoomen, sodass dieser Punkt stehen bleibt */
-  function zoomAt(newS, px = S / 2, py = S / 2) {
+  function zoomAt(newS, px = W / 2, py = H / 2) {
     newS = Math.min(Math.max(newS, minS), minS * 5);
     x = px - ((px - x) / s) * newS;
     y = py - ((py - y) / s) * newS;
@@ -37,7 +38,7 @@ const Cropper = (() => {
   }
 
   let isFile = false, startCrop = null;
-  async function open(source, { crop = null } = {}) {
+  async function open(source, { crop = null, aspect = 1 } = {}) {
     isFile = source instanceof Blob;
     startCrop = crop;
     let blob = source;
@@ -52,16 +53,19 @@ const Cropper = (() => {
       url = URL.createObjectURL(blob);
       img.onload = () => {
         nw = img.naturalWidth; nh = img.naturalHeight;
-        S = Math.round(Math.min(300, window.innerWidth - 64));
-        view.style.width = view.style.height = S + "px";
+        const room = Math.min(aspect > 1 ? 340 : 300, window.innerWidth - 64);
+        W = Math.round(room); H = Math.round(room / aspect);
+        OW = aspect > 1 ? 1200 : OUT; OH = Math.round(OW / aspect);
+        view.style.width = W + "px"; view.style.height = H + "px";
+        view.classList.toggle("rect", aspect !== 1);
         img.style.width = nw + "px"; img.style.height = nh + "px";
-        minS = Math.max(S / nw, S / nh);
+        minS = Math.max(W / nw, H / nh);
         s = minS;
-        x = (S - nw * s) / 2; y = (S - nh * s) / 2; // mittig
+        x = (W - nw * s) / 2; y = (H - nh * s) / 2; // mittig
         if (startCrop) { // gespeicherten Ausschnitt wiederherstellen
           s = minS * (startCrop.z || 1);
-          x = S / 2 - startCrop.cx * nw * s;
-          y = S / 2 - startCrop.cy * nh * s;
+          x = W / 2 - startCrop.cx * nw * s;
+          y = H / 2 - startCrop.cy * nh * s;
         }
         paint();
       };
@@ -80,11 +84,11 @@ const Cropper = (() => {
     let out = null;
     if (ok && nw) {
       const c = document.createElement("canvas");
-      c.width = c.height = OUT;
+      c.width = OW; c.height = OH;
       const ctx = c.getContext("2d");
       ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(img, -x / s, -y / s, S / s, S / s, 0, 0, OUT, OUT);
-      out = { image: c.toDataURL("image/jpeg", 0.88), crop: { cx: (S / 2 - x) / (s * nw), cy: (S / 2 - y) / (s * nh), z: s / minS }, original: null };
+      ctx.drawImage(img, -x / s, -y / s, W / s, H / s, 0, 0, OW, OH);
+      out = { image: c.toDataURL("image/jpeg", 0.86), crop: { cx: (W / 2 - x) / (s * nw), cy: (H / 2 - y) / (s * nh), z: s / minS }, original: null };
       if (isFile) { // Original verkleinert aufheben, damit man später wieder herauszoomen kann
         const k = Math.min(1, ORIG_MAX / Math.max(nw, nh));
         const o = document.createElement("canvas");

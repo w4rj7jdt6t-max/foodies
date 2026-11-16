@@ -251,7 +251,7 @@ async function copyFriendRecipe(r) {
   if (r.image) {
     try { const res = await fetch(r.image); if (res.ok) image = await compressImage(await res.blob()); } catch {}
   }
-  const { id, createdAt, updatedAt, imagePath, imageAuto, imageCredit, ...rest } = r;
+  const { id, createdAt, updatedAt, imagePath, imageSrc, imageAuto, imageCredit, ...rest } = r;
   const from = state.viewing?.user;
   const { _from, ...clean } = rest;
   const note = from ? `Rezept von ${from.display_name} (@${from.username})` : state.readOnlyAttribution || (state.readOnlyFrom ? `Übernommen aus „${state.readOnlyFrom}“` : null);
@@ -657,21 +657,47 @@ form.addEventListener("input", (e) => {
 });
 
 /* --- Bild (nur eigene Fotos; ohne Foto zeigt die Seite ein Emoji) --- */
-function setImage(dataUrl) {
+const RECIPE_ASPECT = 4 / 3;
+/** src: Original zum Nachjustieren { url, path?, crop } – url ist bei neu gewählten Fotos eine DataURL */
+function setImage(dataUrl, src = null) {
   state.image = dataUrl;
+  state.imageSrc = dataUrl ? src : null;
   const img = $("#image-preview");
   img.hidden = !dataUrl;
   if (dataUrl) img.src = dataUrl; else img.removeAttribute("src");
   $("#image-hint").hidden = !!dataUrl;
-  $("#image-remove").hidden = !dataUrl;
+  $("#image-remove").hidden = $("#image-new").hidden = $("#image-adjust").hidden = !dataUrl;
+  $("#image-drop").setAttribute("aria-label", dataUrl ? "Bildausschnitt anpassen" : "Bild hinzufügen");
 }
 async function handleFile(file) {
   if (!file || !file.type.startsWith("image/")) return;
-  try { setImage(await compressImage(file)); saveDraftSoon(); } catch (err) { toast(err.message); }
+  try {
+    const res = await Cropper.open(file, { aspect: RECIPE_ASPECT });
+    if (!res) return; // abgebrochen
+    setImage(res.image, { url: res.original, crop: res.crop });
+    saveDraftSoon();
+  } catch (err) { toast(err.message); }
+}
+/** vorhandenes Bild erneut zuschneiden (vom Original, sonst vom aktuellen Bild) */
+async function recropImage() {
+  const src = state.imageSrc?.url ? state.imageSrc
+    : { url: state.image, path: state.editing?.image === state.image ? state.editing?.imagePath || null : null, crop: null };
+  try {
+    const res = await Cropper.open(src.url, { crop: src.crop, aspect: RECIPE_ASPECT });
+    if (!res) return;
+    setImage(res.image, { ...src, crop: res.crop });
+    saveDraftSoon();
+  } catch (err) { console.error(err); toast("Dieses Bild lässt sich nicht bearbeiten – wähl es mit 📷 neu aus."); }
 }
 $("#image-input").addEventListener("change", (e) => { handleFile(e.target.files[0]); e.target.value = ""; });
 $("#image-remove").addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); setImage(null); saveDraftSoon(); });
+$("#image-new").addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); $("#image-input").click(); });
 const drop = $("#image-drop");
+drop.addEventListener("click", (e) => {
+  if (e.target.closest("input")) return;
+  if (state.image) recropImage(); else $("#image-input").click();
+});
+drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); drop.click(); } });
 ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
 ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
 drop.addEventListener("drop", (e) => handleFile(e.dataTransfer.files[0]));
@@ -705,6 +731,8 @@ function readEditor() {
     servings: parseInt($("#f-servings").value, 10) || 2,
     time: parseInt($("#f-time").value, 10) || null,
     image: state.image,
+    // neu gewähltes Original ist zu groß für den Entwurf → nur gespeicherte Originale merken
+    imageSrc: state.imageSrc?.url && !state.imageSrc.url.startsWith("data:") ? state.imageSrc : null,
     ingredients: [...$("#ing-rows").children].map((row) => ({
       amount: parseAmount(row.querySelector(".i-amount").value),
       unit: row.querySelector(".i-unit").value,
@@ -757,7 +785,7 @@ function openEditor(recipe = null, { draft = false, fromDraft = false } = {}) {
   setEditType(recipe?.type || state.type);
   $("#f-servings").value = recipe?.servings || 2;
   $("#f-time").value = recipe?.time || "";
-  setImage(recipe?.image || null);
+  setImage(recipe?.image || null, recipe?.imageSrc || null);
 
   const fill = (box, items, make) => {
     box.innerHTML = "";
@@ -775,6 +803,13 @@ function openEditor(recipe = null, { draft = false, fromDraft = false } = {}) {
 }
 $("#btn-new").addEventListener("click", () => openEditor());
 
+/** Bild-Felder fürs Speichern: neues Original wird hochgeladen, ein gespeichertes behält nur den neuen Ausschnitt */
+function imageFields() {
+  const src = state.imageSrc;
+  if (!state.image || !src?.url) return { imageSrc: null };
+  if (!src.path && src.url.startsWith("data:")) return { imageOriginal: src.url, imageSrc: { crop: src.crop } };
+  return { imageSrc: { url: src.url, path: src.path || null, crop: src.crop } };
+}
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const title = $("#f-title").value.trim();
@@ -814,6 +849,7 @@ form.addEventListener("submit", async (e) => {
     servings: Math.max(1, Math.min(50, parseInt($("#f-servings").value, 10) || 2)),
     time: parseInt($("#f-time").value, 10) || null,
     image: state.image,
+    ...imageFields(),
     ingredients,
     steps: [...$("#step-rows").children].map((row) => ({
       title: row.querySelector(".s-title").value.trim(),
@@ -834,7 +870,8 @@ form.addEventListener("submit", async (e) => {
       // Klappt nur das Hochladen des Fotos nicht, das Rezept trotzdem (ohne neues Foto) sichern
       if (!(recipe.image && recipe.image.startsWith("data:"))) throw err;
       console.error(err);
-      recipe = await Store.put({ ...recipe, image: state.editing?.image || null }, state.editing);
+      const { imageOriginal, ...rest } = recipe;
+      recipe = await Store.put({ ...rest, image: state.editing?.image || null, imageSrc: state.editing?.imageSrc || null }, state.editing);
       photoFailed = true;
     }
   } catch (err) {
