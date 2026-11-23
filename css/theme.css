@@ -236,3 +236,10 @@ input[type="text"], input[type="email"], input[type="password"], input[type="num
 .header-actions { top: 30px; }
 @media (max-width: 1000px) { .hh-btn .hh-label, .hh-btn.has-photo .hh-label { max-width: 170px; } }
 @media (max-width: 680px) { .header-actions { top: 14px; } }
+
+/* ---------- Filter: nur der Knopf, alles Weitere im Filter-Fenster ---------- */
+.filter-btn { padding: 7px 14px; font-size: 13.5px; gap: 7px; }
+.filter-btn.has-active .filter-badge { background: #fff; color: var(--ink); }
+.filter-panel { padding: 14px 16px 16px; }
+.filter-group + .filter-group { margin-top: 14px; }
+.filter-group-title { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--ink-soft); }

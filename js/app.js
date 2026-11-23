@@ -209,14 +209,14 @@ function renderChips() {
   const used = new Set(listRecipes().filter((r) => r.type === state.type).map((r) => r.category));
   const cats = CATEGORIES.filter((c) => used.has(c.id));
   if (state.category !== "all" && !used.has(state.category)) state.category = "all";
-  $("#category-chips").innerHTML = cats.length < 2 ? "" :
-    [`<button class="chip ${state.category === "all" ? "is-active" : ""}" data-cat="all">Alle</button>`,
-     ...cats.map((c) => `<button class="chip ${state.category === c.id ? "is-active" : ""}" data-cat="${c.id}">${c.emoji} ${esc(c.label)}</button>`)].join("");
+  // Kategorien stecken im Filter-Fenster (nur sinnvoll, wenn es mehr als eine gibt)
+  $("#category-group").hidden = cats.length < 2;
+  $("#category-chips").innerHTML = cats.map((c) => `<button type="button" class="tag" data-cat="${c.id}" aria-pressed="${state.category === c.id}">${c.emoji} ${esc(c.label)}</button>`).join("");
 }
 $("#category-chips").addEventListener("click", (e) => {
-  const b = e.target.closest(".chip");
+  const b = e.target.closest("[data-cat]");
   if (!b) return;
-  state.category = b.dataset.cat;
+  state.category = state.category === b.dataset.cat ? "all" : b.dataset.cat; // nochmal tippen = abwählen
   renderList();
 });
 
@@ -272,7 +272,7 @@ function tagButtons(selected, list = TAGS) {
   return list.map((t) => `<button type="button" class="tag" data-tag="${t.id}" aria-pressed="${selected.has(t.id)}">${t.emoji} ${esc(t.label)}</button>`).join("");
 }
 function renderFilter() {
-  const btn = $("#btn-filter"), n = state.tags.size;
+  const btn = $("#btn-filter"), n = state.tags.size + (state.category !== "all" ? 1 : 0);
   btn.setAttribute("aria-expanded", String(!$("#filter-panel").hidden));
   btn.classList.toggle("has-active", n > 0);
   $("#filter-badge").hidden = !n;
@@ -286,7 +286,7 @@ $("#filter-tags").addEventListener("click", (e) => {
   state.tags.has(t.dataset.tag) ? state.tags.delete(t.dataset.tag) : state.tags.add(t.dataset.tag);
   renderList();
 });
-$("#filter-reset").addEventListener("click", () => { state.tags.clear(); renderList(); });
+$("#filter-reset").addEventListener("click", () => { state.tags.clear(); state.category = "all"; renderList(); });
 
 function renderList() {
   document.querySelectorAll("#panel-rezepte .subtab").forEach((b) => {

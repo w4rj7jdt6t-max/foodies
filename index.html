@@ -11,8 +11,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=50" />
-  <link rel="stylesheet" href="css/theme.css?v=50" />
+  <link rel="stylesheet" href="css/styles.css?v=51" />
+  <link rel="stylesheet" href="css/theme.css?v=51" />
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -119,16 +119,22 @@
         </label>
         <div class="filter-row">
           <button type="button" class="filter-btn" id="btn-filter" aria-expanded="false" aria-controls="filter-panel">
-            <span aria-hidden="true">🎛️</span> Filter <span class="filter-badge" id="filter-badge" hidden></span>
+            Filter <span class="filter-badge" id="filter-badge" hidden></span>
           </button>
-          <div class="chips" id="category-chips"></div>
         </div>
         <div class="filter-panel" id="filter-panel" hidden>
           <div class="filter-panel-head">
             <strong>Genauer filtern</strong>
             <button type="button" class="link-btn" id="filter-reset">Zurücksetzen</button>
           </div>
-          <div class="tag-picker" id="filter-tags"></div>
+          <div class="filter-group" id="category-group">
+            <p class="filter-group-title">Kategorie</p>
+            <div class="tag-picker" id="category-chips"></div>
+          </div>
+          <div class="filter-group">
+            <p class="filter-group-title" id="filter-tags-title">Merkmale</p>
+            <div class="tag-picker" id="filter-tags"></div>
+          </div>
         </div>
       </div>
 
@@ -200,7 +206,7 @@
       <div class="toolbar">
         <div class="filter-row">
           <button type="button" class="filter-btn" id="rest-filter-btn" aria-expanded="false" aria-controls="rest-filter-panel">
-            <span aria-hidden="true">🎛️</span> Filter <span class="filter-badge" id="rest-filter-badge" hidden></span>
+            Filter <span class="filter-badge" id="rest-filter-badge" hidden></span>
           </button>
         </div>
         <div class="filter-panel" id="rest-filter-panel" hidden>
@@ -300,7 +306,7 @@
         </label>
         <div class="filter-row">
           <button type="button" class="filter-btn" id="insp-filter-btn" aria-expanded="false" aria-controls="insp-filter-panel">
-            <span aria-hidden="true">🎛️</span> Filter <span class="filter-badge" id="insp-filter-badge" hidden></span>
+            Filter <span class="filter-badge" id="insp-filter-badge" hidden></span>
           </button>
         </div>
         <div class="filter-panel" id="insp-filter-panel" hidden>
@@ -556,18 +562,18 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="js/config.js?v=50"></script>
-  <script src="js/db.js?v=50"></script>
-  <script src="js/store.js?v=50"></script>
-  <script src="js/app.js?v=50"></script>
-  <script src="js/household.js?v=50"></script>
-  <script src="js/cropper.js?v=50"></script>
-  <script src="js/profile.js?v=50"></script>
-  <script src="js/groceries.js?v=50"></script>
-  <script src="js/shopping.js?v=50"></script>
-  <script src="js/calendar.js?v=50"></script>
-  <script src="js/reste.js?v=50"></script>
-  <script src="js/translate.js?v=50"></script>
-  <script src="js/inspiration.js?v=50"></script>
+  <script src="js/config.js?v=51"></script>
+  <script src="js/db.js?v=51"></script>
+  <script src="js/store.js?v=51"></script>
+  <script src="js/app.js?v=51"></script>
+  <script src="js/household.js?v=51"></script>
+  <script src="js/cropper.js?v=51"></script>
+  <script src="js/profile.js?v=51"></script>
+  <script src="js/groceries.js?v=51"></script>
+  <script src="js/shopping.js?v=51"></script>
+  <script src="js/calendar.js?v=51"></script>
+  <script src="js/reste.js?v=51"></script>
+  <script src="js/translate.js?v=51"></script>
+  <script src="js/inspiration.js?v=51"></script>
 </body>
 </html>
