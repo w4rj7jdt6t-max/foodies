@@ -112,12 +112,10 @@ const Household = (() => {
     $("#btn-household").hidden = false;
     $("#hh-name").textContent = current.name;
     const btn = $("#btn-household"), photo = $("#hh-photo");
+    // rundes Fenster: Haushaltsbild – ohne Bild das Haus-Emoji
     btn.classList.toggle("has-photo", !!current.image_url);
-    document.body.classList.toggle("has-hh-photo", !!current.image_url);
-    photo.hidden = !current.image_url;
-    photo.innerHTML = current.image_url ? `<img src="${esc(current.image_url)}" alt="" />` : "";
+    photo.innerHTML = current.image_url ? `<img src="${esc(current.image_url)}" alt="" />` : `<span class="hh-photo-emoji">🏡</span>`;
     btn.setAttribute("aria-label", `Haushalt: ${current.name}`);
-    $("#brand-sub").textContent = current.subtitle || "by toem";
     const ro = current.role === "viewer";
     document.body.classList.toggle("readonly", ro);
     $("#readonly-pill").hidden = !ro;
@@ -234,7 +232,6 @@ const Household = (() => {
         <p class="muted hh-role">Deine Rolle: <b>${esc(ROLE_LABEL[current.role])}</b></p>
         ${isOwner ? `<div class="hh-edit">
           <label class="field"><span>Name</span><input type="text" id="hh-edit-name" maxlength="60" value="${esc(current.name)}" /></label>
-          <label class="field"><span>Untertitel oben auf der Seite</span><input type="text" id="hh-edit-sub" maxlength="80" value="${esc(current.subtitle || "")}" placeholder="by toem" /></label>
           <button type="button" class="btn btn-soft" data-hh="save">Speichern</button>
         </div>` : ""}
       </section>
@@ -346,7 +343,7 @@ const Household = (() => {
       if (act === "new-open") { $("#hh-new-form").hidden = false; $("#hh-new-name").focus(); return; }
       if (act === "new-cancel") { $("#hh-new-form").hidden = true; return; }
       if (act === "save") {
-        const name = $("#hh-edit-name").value.trim(), sub = $("#hh-edit-sub").value.trim();
+        const name = $("#hh-edit-name").value.trim(), sub = current.subtitle || ""; // Untertitel ist fest („unsere gemeinsame Küche“)
         await Store.households.rpc("update_household", { p_household: current.id, p_name: name, p_subtitle: sub });
         Object.assign(current, { name, subtitle: sub });
         applyCurrent(); toast("Gespeichert ✓"); return render();

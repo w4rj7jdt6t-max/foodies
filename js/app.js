@@ -906,7 +906,6 @@ function showLogin(show) {
   document.body.classList.toggle("locked", show);
   $("#login").hidden = !show;
   $("#btn-logout").hidden = show || !Store.cloud || !!(typeof Profile !== "undefined" && Profile.me);
-  $("#sync-badge").hidden = show || !Store.cloud;
 }
 $("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();

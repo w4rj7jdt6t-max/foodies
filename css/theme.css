@@ -201,3 +201,38 @@ input[type="text"], input[type="email"], input[type="password"], input[type="num
 .shop-cat-head, .custom-list-title, .pick-h, .day-head strong, .rest-sub-head h3, .rest-quick summary, .rest-group-head {
   font-weight: 700; letter-spacing: -.02em; font-size: 16.5px; color: var(--ink);
 }
+
+/* ================= Kopf: Haushalt links (rundes Bild + Name), Profil rechts (rundes Bild) ================= */
+.header-left, .header-actions { top: 24px; }
+.hh-btn, .hh-btn.has-photo {
+  display: inline-flex; flex-direction: row; align-items: center; gap: 10px;
+  max-width: 300px; padding: 0; border: 0; background: none; box-shadow: none; overflow: visible;
+  color: var(--ink); font-size: 15px; font-weight: 600; letter-spacing: -.01em; cursor: pointer;
+}
+.hh-btn:hover, .hh-btn.has-photo:hover { background: none; }
+.hh-btn .hh-photo, .hh-btn.has-photo .hh-photo {
+  display: grid; place-items: center; flex: 0 0 auto; width: 52px; height: 52px; border-radius: 50%; overflow: hidden;
+  background: var(--paper); box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--line-strong), var(--shadow-sm);
+  transition: transform .15s ease;
+}
+.hh-btn:hover .hh-photo { transform: scale(1.04); }
+.hh-photo-emoji { font-size: 27px; line-height: 1; }
+.hh-btn .hh-label, .hh-btn.has-photo .hh-label {
+  position: static; margin: 0; padding: 0; border: 0; background: none; box-shadow: none;
+  font-size: 15px; font-weight: 600; color: var(--ink);
+  max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.avatar-btn .avatar { width: 40px; height: 40px; }
+
+@media (max-width: 680px) {
+  .site-header { padding-top: 16px; }
+  body.has-hh-photo .site-header { padding-top: 16px; }
+  .header-left, .header-actions { top: 14px; }
+  .hh-btn .hh-label, .hh-btn.has-photo .hh-label { display: none; }
+  .hh-btn .hh-photo, .hh-btn.has-photo .hh-photo { width: 42px; height: 42px; }
+  .hh-photo-emoji { font-size: 22px; }
+  .avatar-btn .avatar { width: 42px; height: 42px; }
+}
+.header-actions { top: 30px; }
+@media (max-width: 1000px) { .hh-btn .hh-label, .hh-btn.has-photo .hh-label { max-width: 170px; } }
+@media (max-width: 680px) { .header-actions { top: 14px; } }
