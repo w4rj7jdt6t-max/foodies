@@ -2,6 +2,6 @@
   "name": "foodies",
   "private": true,
   "scripts": {
-    "build": "rm -rf dist && mkdir -p dist && cp -r index.html css js _headers dist/"
+    "build": "rm -rf dist && mkdir -p dist && cp -r index.html css js icons _headers dist/"
   }
 }

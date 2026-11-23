@@ -28,7 +28,7 @@
   --radius-sm: 12px;
   --btn-radius: 12px;
   --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-display: "Fraunces", Georgia, serif;
+  --font-display: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 /* ---------- Grundfläche ---------- */
@@ -44,8 +44,10 @@ body {
 /* ---------- Kopfbereich ---------- */
 .site-header { padding: 30px 20px 4px; }
 .brand { gap: 8px; }
-.brand-mark { font-size: 26px; filter: none; }
-.brand-name { font-size: clamp(32px, 5vw, 42px); font-weight: 600; letter-spacing: -.03em; color: var(--mint-900); }
+.brand-mark { display: inline-flex; width: 40px; height: 40px; filter: none; }
+.brand-mark svg { width: 100%; height: 100%; display: block; }
+.brand-name { font-size: clamp(30px, 4.6vw, 40px); font-weight: 800; letter-spacing: -.05em; color: var(--mint-900); line-height: 1; }
+.brand { gap: 10px; }
 .brand-tag { font-size: 13.5px; margin-top: 0; color: var(--ink-soft); }
 .hh-btn { border-color: var(--line-strong); background: var(--paper); color: var(--ink); font-weight: 600; box-shadow: var(--shadow-sm); }
 .hh-btn:hover { background: var(--mint-50); }
@@ -154,8 +156,8 @@ input[type="text"], input[type="email"], input[type="password"], input[type="num
   .header-left, .header-actions { top: 12px; }
   main { margin-top: 18px; }
   body.has-hh-photo .site-header { padding-top: 66px; }
-  .brand-mark { font-size: 22px; }
-  .brand-name { font-size: 30px; }
+  .brand-mark { width: 32px; height: 32px; }
+  .brand-name { font-size: 29px; }
   .brand-tag { font-size: 12.5px; }
   .panel-head h2 { font-size: 26px; }
   main { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
@@ -183,3 +185,19 @@ input[type="text"], input[type="email"], input[type="password"], input[type="num
   .modal.crop-modal { border-radius: 22px; }
 }
 .toast { background: var(--ink); border-radius: 12px; font-weight: 600; }
+
+/* ---------- Eine Schrift für alles: sachlich & aufgeräumt ---------- */
+.panel-head h2, .modal-top h2, .detail-title, .card h3, .login-card h2, .soon h2, .editor legend, .step-title, .crop-inner h2 {
+  font-family: var(--font-body); font-weight: 700; letter-spacing: -.025em;
+}
+.panel-head h2 { font-size: 28px; }
+.modal-top h2 { font-size: 24px; }
+.detail-title { font-size: clamp(26px, 4.4vw, 32px); line-height: 1.15; }
+.card h3 { font-size: 17px; letter-spacing: -.015em; }
+.editor legend { font-size: 17px; }
+.step-title { font-size: 15.5px; font-weight: 600; letter-spacing: -.01em; }
+.login-card h2 { font-size: 24px; }
+@media (max-width: 680px) { .panel-head h2 { font-size: 25px; } }
+.shop-cat-head, .custom-list-title, .pick-h, .day-head strong, .rest-sub-head h3, .rest-quick summary, .rest-group-head {
+  font-weight: 700; letter-spacing: -.02em; font-size: 16.5px; color: var(--ink);
+}
