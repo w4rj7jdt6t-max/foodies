@@ -1,27 +1,32 @@
 /* ================= foodies ================= */
+/* Kategorien (Kochen): Gang bzw. Mahlzeit. „backen“ ist die feste Kategorie aller Backrezepte. */
 const CATEGORIES = [
+  { id: "vorspeise", label: "Vorspeise", emoji: "🥟" },
   { id: "haupt", label: "Hauptgericht", emoji: "🍲" },
-  { id: "pasta", label: "Pasta", emoji: "🍝" },
+  { id: "nachtisch", label: "Nachtisch", emoji: "🍮" },
   { id: "fruehstueck", label: "Frühstück", emoji: "🥐" },
-  { id: "suppe", label: "Suppe", emoji: "🥣" },
-  { id: "salat", label: "Salat", emoji: "🥗" },
-  { id: "snack", label: "Snack", emoji: "🥨" },
   { id: "backen", label: "Backen", emoji: "🥖" },
-  { id: "dessert", label: "Dessert", emoji: "🍰" },
-  { id: "getraenk", label: "Getränk", emoji: "🍹" },
 ];
-const catById = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[0];
+const COOK_CATS = ["vorspeise", "haupt", "nachtisch", "fruehstueck"];
+const catById = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[1];
+/* frühere Kategorien, die jetzt Merkmale sind (alte Rezepte werden beim Laden umgestellt) */
+const LEGACY_CAT_TAG = { pasta: "pasta", suppe: "suppe", salat: "salat", snack: "snack", getraenk: "getraenk" };
 
 /* Genauere Filter-Merkmale (nur für „Kochen“) */
 const TAGS = [
-  { id: "fruehstueck", label: "Frühstück", emoji: "🥐" },
-  { id: "hauptgericht", label: "Hauptgericht", emoji: "🍲" },
   { id: "haehnchen", label: "Hähnchen", emoji: "🍗" },
   { id: "hack", label: "Hackfleisch", emoji: "🥩" },
+  { id: "rind", label: "Rindfleisch", emoji: "🐄" },
+  { id: "schwein", label: "Schweinefleisch", emoji: "🐖" },
+  { id: "fisch", label: "Fisch", emoji: "🐟" },
   { id: "vegetarisch", label: "Vegetarisch", emoji: "🥦" },
   { id: "pasta", label: "Pasta", emoji: "🍝" },
   { id: "reis", label: "Reis", emoji: "🍚" },
   { id: "kartoffeln", label: "Kartoffeln", emoji: "🥔" },
+  { id: "suppe", label: "Suppe", emoji: "🥣" },
+  { id: "salat", label: "Salat", emoji: "🥗" },
+  { id: "snack", label: "Snack", emoji: "🥨" },
+  { id: "getraenk", label: "Getränk", emoji: "🍹" },
   { id: "warm", label: "Warm", emoji: "🔥" },
   { id: "kalt", label: "Kalt", emoji: "🧊" },
 ];
@@ -34,12 +39,17 @@ const BAKE_TAGS = [
   { id: "broetchen", label: "Brötchen", emoji: "🥖" },
 ];
 /** Platzhalter-Emoji: bei Backrezepten das erste Merkmal (🍪, 🍞 …), sonst die Kategorie */
-const recipeEmoji = (r) => (r.type === "backen" && r.tags?.length && tagById(r.tags[0])?.emoji) || catById(r.category).emoji;
+const DISH_TAGS = ["pasta", "suppe", "salat", "snack", "getraenk"];
+const recipeEmoji = (r) => {
+  if (r.type === "backen") return (r.tags?.length && tagById(r.tags[0])?.emoji) || catById("backen").emoji;
+  const dish = r.category === "haupt" || !COOK_CATS.includes(r.category) ? DISH_TAGS.find((t) => r.tags?.includes(t)) || LEGACY_CAT_TAG[r.category] : null;
+  return (dish && tagById(dish)?.emoji) || catById(r.category).emoji;
+};
 const tagsFor = (type) => (type === "backen" ? BAKE_TAGS : TAGS);
 /* zusätzliche Filter nur für „Inspiration“ */
 const INSP_EXTRA_TAGS = [
-  { id: "suppe", label: "Suppe", emoji: "🥣" },
-  { id: "salat", label: "Salat", emoji: "🥗" },
+  { id: "fruehstueck", label: "Frühstück", emoji: "🥐" },
+  { id: "hauptgericht", label: "Hauptgericht", emoji: "🍲" },
 ];
 const tagById = (id) => TAGS.find((t) => t.id === id) || BAKE_TAGS.find((t) => t.id === id) || INSP_EXTRA_TAGS.find((t) => t.id === id);
 const TYPES = { kochen: { label: "Kochen", emoji: "🍳" }, backen: { label: "Backen", emoji: "🧁" } };
@@ -48,6 +58,16 @@ const TYPES = { kochen: { label: "Kochen", emoji: "🍳" }, backen: { label: "Ba
 function normalize(r) {
   if (!r.type) r.type = r.category === "backen" ? "backen" : "kochen";
   if (!Array.isArray(r.tags)) r.tags = SAMPLE_RECIPES.find((s) => s.title === r.title)?.tags || [];
+  if (r.type === "backen") r.category = "backen";
+  else {
+    // alte Kategorien (Pasta, Suppe …) → Merkmal; Frühstück/Hauptgericht sind jetzt Kategorien statt Merkmale
+    const tags = [...r.tags];
+    if (LEGACY_CAT_TAG[r.category]) { tags.push(LEGACY_CAT_TAG[r.category]); r.category = "haupt"; }
+    if (r.category === "dessert") r.category = "nachtisch";
+    if (!COOK_CATS.includes(r.category)) r.category = "haupt";
+    if (tags.includes("fruehstueck") && r.category === "haupt") r.category = "fruehstueck";
+    r.tags = [...new Set(tags)].filter((t) => t !== "fruehstueck" && t !== "hauptgericht");
+  }
   r.tags = r.tags.filter((t) => tagById(t)); // entfernte Merkmale aussortieren
   if (!Array.isArray(r.links)) r.links = [];
   return r;
@@ -206,11 +226,10 @@ try {
 
 /* ================= Rezeptliste ================= */
 function renderChips() {
-  const used = new Set(listRecipes().filter((r) => r.type === state.type).map((r) => r.category));
-  const cats = CATEGORIES.filter((c) => used.has(c.id));
-  if (state.category !== "all" && !used.has(state.category)) state.category = "all";
-  // Kategorien stecken im Filter-Fenster (nur sinnvoll, wenn es mehr als eine gibt)
-  $("#category-group").hidden = cats.length < 2;
+  const cats = state.type === "backen" ? [] : CATEGORIES.filter((c) => COOK_CATS.includes(c.id));
+  if (state.category !== "all" && !cats.some((c) => c.id === state.category)) state.category = "all";
+  // Kategorien stecken im Filter-Fenster – beim Kochen immer alle vier, Backen hat keine
+  $("#category-group").hidden = state.type === "backen";
   $("#category-chips").innerHTML = cats.map((c) => `<button type="button" class="tag" data-cat="${c.id}" aria-pressed="${state.category === c.id}">${c.emoji} ${esc(c.label)}</button>`).join("");
 }
 $("#category-chips").addEventListener("click", (e) => {
@@ -479,7 +498,7 @@ $("#detail-content").addEventListener("click", async (e) => {
 
 /* ================= Editor (Vorlage) ================= */
 const form = $("#editor-form");
-$("#f-category").innerHTML = CATEGORIES.map((c) => `<option value="${c.id}">${c.emoji} ${esc(c.label)}</option>`).join("");
+$("#f-category").innerHTML = CATEGORIES.filter((c) => c.id !== "backen").map((c) => `<option value="${c.id}">${c.emoji} ${esc(c.label)}</option>`).join("");
 
 function ingRow(i = {}) {
   const div = document.createElement("div");
@@ -708,6 +727,8 @@ function setEditType(type) {
   document.querySelectorAll("#f-type .seg-btn").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.type === type)));
   // Merkmale der jeweiligen Art anzeigen; nicht passende fallen beim Speichern weg
   $("#f-tags").innerHTML = tagButtons(state.editTags, tagsFor(type));
+  // Backrezepte haben keine Gang-Kategorie
+  $("#f-category").closest(".field").hidden = type === "backen";
 }
 $("#f-type").addEventListener("click", (e) => { const b = e.target.closest(".seg-btn"); if (b) setEditType(b.dataset.type); });
 $("#f-tags").addEventListener("click", (e) => {
@@ -726,7 +747,7 @@ function readEditor() {
   return {
     title: $("#f-title").value,
     type: state.editType,
-    category: $("#f-category").value,
+    category: state.editType === "backen" ? "backen" : $("#f-category").value,
     tags: [...state.editTags],
     servings: parseInt($("#f-servings").value, 10) || 2,
     time: parseInt($("#f-time").value, 10) || null,
@@ -780,8 +801,10 @@ function openEditor(recipe = null, { draft = false, fromDraft = false } = {}) {
   $("#editor-title").textContent = draft ? "Idee übernehmen" : recipe ? "Rezept bearbeiten" : "Neues Rezept";
   $("#f-title").value = recipe?.title || "";
   $("#f-title").classList.remove("invalid");
-  $("#f-category").value = recipe?.category || (state.type === "backen" ? "backen" : "haupt");
-  state.editTags = new Set(recipe?.tags || []);
+  // ältere Kategorien/Merkmale auf das aktuelle Schema bringen (ohne das Original zu verändern)
+  const norm = recipe ? normalize({ ...recipe, tags: [...(recipe.tags || [])] }) : null;
+  $("#f-category").value = norm && norm.category !== "backen" ? norm.category : "haupt";
+  state.editTags = new Set(norm?.tags || []);
   setEditType(recipe?.type || state.type);
   $("#f-servings").value = recipe?.servings || 2;
   $("#f-time").value = recipe?.time || "";
@@ -844,7 +867,7 @@ form.addEventListener("submit", async (e) => {
     updatedAt: now,
     title,
     type: state.editType,
-    category: $("#f-category").value,
+    category: state.editType === "backen" ? "backen" : $("#f-category").value,
     tags: tagsFor(state.editType).map((t) => t.id).filter((id) => state.editTags.has(id)),
     servings: Math.max(1, Math.min(50, parseInt($("#f-servings").value, 10) || 2)),
     time: parseInt($("#f-time").value, 10) || null,

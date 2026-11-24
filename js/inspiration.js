@@ -7,7 +7,7 @@
 const insp = { type: "kochen", tags: new Set(), ideas: [], provider: null, sample: null, loading: false, ctl: null, started: false, lastQuery: "" };
 
 /* ---------- Filter-UI (gleiche Merkmale wie bei Rezepte) ---------- */
-const inspTagList = () => (insp.type === "backen" ? BAKE_TAGS : insp.source === "friends" ? TAGS : [...TAGS, ...INSP_EXTRA_TAGS]);
+const inspTagList = () => (insp.type === "backen" ? BAKE_TAGS : insp.source === "friends" ? TAGS : [...INSP_EXTRA_TAGS, ...TAGS]);
 document.querySelectorAll(".insp-type").forEach((b) => b.addEventListener("click", () => {
   if (insp.type === b.dataset.type) return;
   insp.type = b.dataset.type;
@@ -207,14 +207,14 @@ async function claudeIdeas(q, tags, random, signal, type = "kochen") {
   const bake = type === "backen";
   const tagMeaning = bake
     ? "kuchen=Kuchen oder Tarte, kekse=Kekse oder Plätzchen, muffins=Muffins oder Cupcakes, brot=Brot, broetchen=Brötchen."
-    : "fruehstueck=Frühstücksgericht, hauptgericht=sättigendes Hauptgericht (Mittag-/Abendessen), haehnchen=enthält Hähnchen, hack=enthält Hackfleisch, vegetarisch=ohne Fleisch und Fisch, pasta=Nudelgericht, reis=mit Reis, kartoffeln=mit Kartoffeln, warm=wird warm gegessen, kalt=wird kalt gegessen, suppe=Suppe oder Eintopf, salat=Salat.";
+    : "fruehstueck=Frühstücksgericht, hauptgericht=sättigendes Hauptgericht (Mittag-/Abendessen), haehnchen=enthält Hähnchen, hack=enthält Hackfleisch, rind=enthält Rindfleisch (kein Hack), schwein=enthält Schweinefleisch, fisch=enthält Fisch oder Meeresfrüchte, vegetarisch=ohne Fleisch und Fisch, pasta=Nudelgericht, reis=mit Reis, kartoffeln=mit Kartoffeln, suppe=Suppe oder Eintopf, salat=Salat, snack=kleiner Snack, getraenk=Getränk, warm=wird warm gegessen, kalt=wird kalt gegessen.";
   const prompt = `Du bist eine kreative ${bake ? "Backberaterin" : "Kochberaterin"} für ein Paar, das gern zu Hause ${bake ? "backt" : "kocht"}. Schlage 6 abwechslungsreiche, gut gelingende ${bake ? "BACKREZEPTE (Kuchen, Gebäck, Brot …)" : "Rezeptideen"} auf Deutsch vor.
 
 Wunsch / Suchbegriff: ${q && !random ? `"${q}"` : `keiner – überrasche mit saisonalen Ideen für ${month}`}
 Pflicht-Merkmale (JEDES Rezept muss ALLE erfüllen): ${tagText}
 
 Merkmal-IDs und Bedeutung: ${tagMeaning}
-Kategorie-IDs: ${bake ? "backen, dessert" : CAT_IDS.join(", ")}.
+Kategorie-IDs: ${bake ? "backen" : "vorspeise, haupt, nachtisch, fruehstueck"}.
 
 Antworte NUR mit einem JSON-Array aus 6 Objekten in genau dieser Form:
 {"title": string, "emoji": ein passendes Essens-Emoji, "summary": ein appetitlicher Satz, "time": Minuten als Zahl, "servings": 2, "category": Kategorie-ID, "tags": [alle zutreffenden Merkmal-IDs], "ingredients": [{"amount": Zahl oder null, "unit": "g"|"ml"|"EL"|"TL"|"Stk."|"Zehe"|"Dose"|"Prise"|"Bund"|"", "name": string}], "steps": [3 bis 6 kurze Schritte], "tips": [1 bis 2 Tipps]}
@@ -227,7 +227,7 @@ ${bake ? "Mengen für ein normales Backrezept (z. B. eine Form oder 12 Stück), 
     summary: String(d.summary || "").slice(0, 220),
     time: Number.isFinite(+d.time) && +d.time > 0 ? Math.round(+d.time) : null,
     servings: Number.isFinite(+d.servings) && +d.servings > 0 ? Math.round(+d.servings) : 2,
-    category: bake ? (d.category === "dessert" ? "dessert" : "backen") : CAT_IDS.includes(d.category) ? d.category : "haupt",
+    category: bake ? "backen" : CAT_IDS.includes(d.category) ? d.category : "haupt",
     type,
     tags: Array.isArray(d.tags) ? (bake ? BAKE_TAGS.map((t) => t.id) : TAG_IDS).filter((id) => d.tags.includes(id)) : [],
     ingredients: (Array.isArray(d.ingredients) ? d.ingredients : []).map((i) => ({
@@ -257,6 +257,7 @@ const TAG_QUERY = {
   fruehstueck: "filter.php?c=Breakfast",
   hauptgericht: MAIN_CATS.map((c) => "filter.php?c=" + c), // mehrere Kategorien → Vereinigung
   haehnchen: "filter.php?c=Chicken", hack: "filter.php?i=Minced_Beef", vegetarisch: "filter.php?c=Vegetarian",
+  rind: "filter.php?c=Beef", schwein: "filter.php?c=Pork", fisch: "filter.php?c=Seafood",
   pasta: "filter.php?c=Pasta", reis: "filter.php?i=Rice", kartoffeln: "filter.php?i=Potatoes",
 };
 const COLD = /salad|gazpacho|ceviche|cold|sushi|tartare|carpaccio|slaw|ice cream|sorbet|overnight|smoothie|cheesecake|mousse|tiramisu|trifle|parfait|summer rolls|poke/i;
@@ -410,7 +411,7 @@ function parseMeasure(measure) {
   return { amount: parseAmount(m[1]), unit: m[2].slice(0, 14), note: "" };
 }
 
-const CAT_MAP = { Pasta: "pasta", Breakfast: "fruehstueck", Dessert: "dessert", Starter: "snack", Side: "snack" };
+const CAT_MAP = { Breakfast: "fruehstueck", Dessert: "nachtisch", Starter: "vorspeise" };
 function mealToIdea(m, type = "kochen") {
   const ingredients = [];
   for (let i = 1; i <= 20; i++) {
@@ -423,6 +424,9 @@ function mealToIdea(m, type = "kochen") {
   const tags = [];
   if (m.strCategory === "Chicken" || /chicken/.test(all)) tags.push("haehnchen");
   if (/minced beef|ground beef|mince|minced/.test(all)) tags.push("hack");
+  else if (m.strCategory === "Beef" || /\bbeef\b|steak/.test(all)) tags.push("rind");
+  if (m.strCategory === "Pork" || /\bpork\b|bacon|\bham\b|chorizo/.test(all)) tags.push("schwein");
+  if (m.strCategory === "Seafood" || /salmon|tuna|\bcod\b|fish|prawn|shrimp|haddock|mackerel|sardine/.test(all)) tags.push("fisch");
   if (["Vegetarian", "Vegan"].includes(m.strCategory)) tags.push("vegetarisch");
   if (m.strCategory === "Pasta" || /spaghetti|penne|pasta|linguine|fusilli|tagliatelle|macaroni|lasagne/.test(all)) tags.push("pasta");
   if (/\brice\b/.test(all)) tags.push("reis");
@@ -440,7 +444,7 @@ function mealToIdea(m, type = "kochen") {
     summary: [m.strArea, m.strCategory].filter(Boolean).join(" · "),
     time: null, servings: null,
     type,
-    category: type === "backen" ? "backen" : CAT_MAP[m.strCategory] || (/soup/i.test(m.strMeal) ? "suppe" : /salad/i.test(m.strMeal) ? "salat" : "haupt"),
+    category: type === "backen" ? "backen" : CAT_MAP[m.strCategory] || "haupt",
     tags: type === "backen" ? bakeTagsFor(m.strMeal) : TAG_IDS.filter((t) => tags.includes(t)),
     ingredients, steps, tips: [],
     source: { label: m.strSource ? "Originalrezept" : "Bei TheMealDB", url },
