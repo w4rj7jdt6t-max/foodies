@@ -95,16 +95,20 @@ const Plan = (() => {
   }
   const mealsOn = (key) => entries.filter((e) => e.date === key).sort((a, b) => a.createdAt - b.createdAt);
 
-  function mealListHTML(key, { canAdd = true } = {}) {
+  function mealListHTML(key, { canAdd = true, actions = false } = {}) {
     const meals = mealsOn(key);
     return `<ul class="day-meals">${meals.map((e) => {
         const r = recipeOf(e);
-        return `<li><button type="button" class="meal" data-id="${e.id}">
+        const open = actions && openMealId === e.id;
+        return `<li class="${open ? "is-open" : ""}" ${actions ? `draggable="true" data-drag="${e.id}"` : ""}><button type="button" class="meal" data-id="${e.id}" ${actions ? `aria-expanded="${open}"` : ""}>
           ${mealThumb(r)}
           <span class="meal-text"><span class="meal-title">${esc(r?.title || e.recipeTitle)}</span>
           <span class="meal-sub">${r ? `👥 ${e.servings} ${e.servings === 1 ? "Portion" : "Portionen"}${!isOwn(e) && e.fromFriend ? ` · 👤 von ${esc(e.fromFriend.name)}` : !isOwn(e) && e.fromHousehold ? ` · aus „${esc(e.fromHousehold)}“` : ""}` : "Rezept wurde gelöscht"}</span></span>
           <span class="bar-chevron" aria-hidden="true">›</span>
-        </button></li>`;
+        </button>${open ? `<div class="meal-actions">
+          <button type="button" class="btn btn-soft" data-mact="recipe" data-id="${e.id}">📖 Rezept</button>
+          <button type="button" class="btn btn-ghost meal-del" data-mact="delete" data-id="${e.id}">🗑️ Löschen</button>
+        </div>` : ""}</li>`;
       }).join("")}</ul>
       ${!meals.length && !canAdd ? `<p class="muted day-none">An diesem Tag war nichts geplant.</p>` : ""}
       ${canAdd ? `<button type="button" class="day-add" data-date="${key}">＋ Mahlzeit</button>` : ""}`;
@@ -113,6 +117,8 @@ const Plan = (() => {
   function render() {
     const y = window.scrollY;
     const all = range(), today = all.find((d) => d.offset === 0);
+    // oben steht immer der ausgewählte Tag (sonst heute)
+    const sel = all.find((d) => d.key === selected) || today;
     const upcoming = entries.filter((e) => days().some((d) => d.key === e.date));
     $("#plan-count").textContent = upcoming.length
       ? `${upcoming.length} ${upcoming.length === 1 ? "Mahlzeit" : "Mahlzeiten"} geplant`
@@ -123,22 +129,24 @@ const Plan = (() => {
       const meals = mealsOn(d.key);
       const firstOfMonth = d.date.getDate() === 1;
       const num = firstOfMonth || d === all[0] ? d.date.toLocaleDateString("de-DE", { day: "numeric", month: "short" }).replace(".", "") : d.date.getDate();
-      return `<button type="button" class="cal-cell ${d.past ? "is-past" : ""} ${d.offset === 0 ? "is-today" : ""} ${d.key === selected ? "is-selected" : ""}"
-          data-date="${d.key}" aria-label="${esc(longDate(d.date))}${meals.length ? `, ${meals.length} geplant` : ""}" aria-pressed="${d.key === selected}">
+      return `<div role="button" tabindex="0" class="cal-cell ${d.past ? "is-past" : ""} ${d.offset === 0 ? "is-today" : ""} ${d.key === sel.key ? "is-selected" : ""}"
+          data-date="${d.key}" aria-label="${esc(longDate(d.date))}${meals.length ? `, ${meals.length} geplant` : ""}" aria-pressed="${d.key === sel.key}">
         <span class="cal-num">${esc(String(num))}</span>
         <span class="cal-meals">${meals.slice(0, 3).map((e) => {
           const r = recipeOf(e);
           // Titelbild des Rezepts – ohne Foto das (gewählte) Emoji auf grünem Grund
           const pic = r?.image ? `<img src="${esc(r.image)}" alt="" loading="lazy" />` : `<span>${r ? recipeEmoji(r) : "🍽️"}</span>`;
-          return `<span class="cal-meal"><span class="cal-meal-pic ${r?.image ? "" : "ph-0"}">${pic}</span><span class="cal-meal-title">${esc(r?.title || e.recipeTitle)}</span></span>`;
+          return `<span class="cal-meal" draggable="true" data-drag="${e.id}" title="${esc(r?.title || e.recipeTitle)} – zum Verschieben ziehen"><span class="cal-meal-pic ${r?.image ? "" : "ph-0"}">${pic}</span><span class="cal-meal-title">${esc(r?.title || e.recipeTitle)}</span></span>`;
         }).join("")}${meals.length > 3 ? `<span class="cal-more">+${meals.length - 3}</span>` : ""}</span>
-      </button>`;
+      </div>`;
     };
 
+    const selLabel = sel.offset === 0 ? "Heute" : sel.offset === 1 ? "Morgen" : sel.offset === -1 ? "Gestern" : sel.date.toLocaleDateString("de-DE", { weekday: "long" });
     $("#week").innerHTML = `
-      <section class="day today-card is-today" data-date="${today.key}">
-        <header class="day-head"><strong>Heute</strong><span>${esc(longDate(today.date))}</span></header>
-        ${mealListHTML(today.key)}
+      <section class="day today-card day-card ${sel.offset === 0 ? "is-today" : ""} ${sel.past ? "is-past" : ""}" data-date="${sel.key}">
+        <header class="day-head"><strong>${esc(selLabel)}</strong><span>${esc(Math.abs(sel.offset) <= 1 ? longDate(sel.date) : sel.date.toLocaleDateString("de-DE", { day: "numeric", month: "long" }))}</span>
+          ${sel.offset !== 0 ? `<button type="button" class="link-btn day-today" data-today>Zu heute</button>` : ""}</header>
+        ${mealListHTML(sel.key, { canAdd: !sel.past, actions: true })}
       </section>
 
       <div class="cal" role="grid" aria-label="Kalender">
@@ -148,17 +156,88 @@ const Plan = (() => {
           <div class="cal-row" role="row">${w.map(cell).join("")}</div>`).join("")}
       </div>
 
-      <p class="cal-hint muted">Tippe auf einen Tag, um ein Rezept einzuplanen.</p>`;
+      <p class="cal-hint muted">Tippe auf einen Tag, um ihn oben anzuzeigen${matchMedia("(hover: hover)").matches ? " – Mahlzeiten lassen sich mit der Maus auf einen anderen Tag ziehen" : ""}.</p>`;
     if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
   }
 
-  $("#week").addEventListener("click", (e) => {
-    const add = e.target.closest(".day-add");
+  let openMealId = null; // Mahlzeit, deren Knöpfe (Rezept / Löschen) gerade offen sind
+  function selectDay(key) {
+    selected = key; openMealId = null;
+    render();
+    const card = $("#week .day-card");
+    if (card && card.getBoundingClientRect().top < 60) card.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  $("#week").addEventListener("click", async (ev) => {
+    const add = ev.target.closest(".day-add");
     if (add) return openPicker(add.dataset.date);
-    const meal = e.target.closest(".meal");
-    if (meal) return openMeal(meal.dataset.id);
-    const c = e.target.closest(".cal-cell");
-    if (c) openPicker(c.dataset.date); // Tag antippen → direkt für diesen Tag planen
+    if (ev.target.closest("[data-today]")) return selectDay(null);
+    const act = ev.target.closest("[data-mact]");
+    if (act) {
+      const e = entries.find((x) => x.id === act.dataset.id);
+      if (!e) return;
+      if (act.dataset.mact === "recipe") { openMealId = null; render(); return showRecipe(e); }
+      // Löschen – sofort, mit „Rückgängig“ über erneutes Einplanen nicht nötig
+      entries = entries.filter((x) => x !== e);
+      openMealId = null;
+      render();
+      toast(`🗑️ ${recipeOf(e)?.title || e.recipeTitle} entfernt`);
+      return drop([e.id]);
+    }
+    const meal = ev.target.closest(".meal");
+    if (meal) {
+      if (meal.closest(".day-card")) { openMealId = openMealId === meal.dataset.id ? null : meal.dataset.id; return render(); }
+      return openMeal(meal.dataset.id);
+    }
+    const c = ev.target.closest(".cal-cell");
+    if (c) selectDay(c.dataset.date); // Tag antippen → oben anzeigen (kein extra Fenster)
+  });
+  $("#week").addEventListener("keydown", (ev) => {
+    const c = ev.target.closest?.(".cal-cell");
+    if (c && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); selectDay(c.dataset.date); }
+  });
+
+  /* --- Ziehen & Ablegen (Maus): Mahlzeit auf einen anderen Tag verschieben --- */
+  let dragId = null;
+  $("#week").addEventListener("dragstart", (ev) => {
+    const d = ev.target.closest?.("[data-drag]");
+    if (!d || document.body.classList.contains("readonly")) return ev.preventDefault();
+    dragId = d.dataset.drag;
+    ev.dataTransfer.effectAllowed = "move";
+    try { ev.dataTransfer.setData("text/plain", dragId); } catch {}
+    d.classList.add("is-dragging");
+    $("#week").classList.add("dragging");
+  });
+  $("#week").addEventListener("dragend", () => {
+    dragId = null;
+    $("#week").classList.remove("dragging");
+    $("#week").querySelectorAll(".is-dragging, .drop-ok").forEach((x) => x.classList.remove("is-dragging", "drop-ok"));
+  });
+  const dropTarget = (ev) => {
+    const c = ev.target.closest?.(".cal-cell, .day-card");
+    return c && !c.classList.contains("is-past") ? c : null;
+  };
+  $("#week").addEventListener("dragover", (ev) => {
+    if (!dragId) return;
+    const c = dropTarget(ev);
+    $("#week").querySelectorAll(".drop-ok").forEach((x) => x !== c && x.classList.remove("drop-ok"));
+    if (!c) return;
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = "move";
+    c.classList.add("drop-ok");
+  });
+  $("#week").addEventListener("drop", async (ev) => {
+    const c = dropTarget(ev);
+    const e = entries.find((x) => x.id === dragId);
+    if (!c || !e) return;
+    ev.preventDefault();
+    const to = c.dataset.date;
+    dragId = null;
+    if (e.date === to) return render();
+    e.date = to;
+    openMealId = null;
+    render();
+    toast(`${recipeOf(e) ? recipeEmoji(recipeOf(e)) : "🍽️"} Verschoben auf ${labelForKey(to)}`);
+    await save([e]);
   });
 
   async function addEntry(date, recipe, friend = null) {
@@ -197,7 +276,7 @@ const Plan = (() => {
     render();
     openModal($("#plan-pick-modal"));
   }
-  $("#plan-pick-modal").addEventListener("close", () => { selected = null; render(); });
+  $("#plan-pick-modal").addEventListener("close", () => render());
   $("#plan-pick-planned").addEventListener("click", (e) => {
     const meal = e.target.closest(".meal");
     if (!meal) return;
@@ -319,20 +398,7 @@ const Plan = (() => {
     }
     if (act === "recipe") {
       closeModal($("#plan-meal-modal"));
-      // zum Tab „Rezepte“ wechseln und das Rezept mit der geplanten Portionenzahl öffnen
-      if (!isOwn(e)) {
-        // Rezept aus einem anderen Haushalt bzw. Kopie → nur ansehen (mit Übernehmen-Möglichkeit)
-        if (e.fromFriend) openRecipeReadOnly(r, e.fromFriend.name, { note: `👤 Von ${e.fromFriend.name} · im Kalender eingeplant`, attribution: e.fromFriend.attribution });
-        else openRecipeReadOnly(r, e.fromHousehold || (others.find((x) => x.id === r.id)?._from) || "");
-        if (e.servings !== r.servings) setServings(e.servings);
-        return;
-      }
-      if (state.type !== r.type) { state.type = r.type; state.category = "all"; state.tags.clear(); }
-      document.querySelector('.tab[data-tab="rezepte"]').click();
-      renderList();
-      openDetail(r.id);
-      if (e.servings !== r.servings) setServings(e.servings);
-      return;
+      return showRecipe(e);
     }
     if (act === "all") {
       await Shop.addAll(r, e.servings / r.servings);
@@ -359,6 +425,27 @@ const Plan = (() => {
       cart.setAttribute("aria-pressed", String(on));
     }
   });
+  /** ganzes Rezept zu einer geplanten Mahlzeit öffnen (mit der geplanten Portionenzahl) */
+  function showRecipe(e) {
+    const r = recipeOf(e);
+    if (!r) return toast("Dieses Rezept wurde gelöscht");
+    {
+      // zum Tab „Rezepte“ wechseln und das Rezept mit der geplanten Portionenzahl öffnen
+      if (!isOwn(e)) {
+        // Rezept aus einem anderen Haushalt bzw. Kopie → nur ansehen (mit Übernehmen-Möglichkeit)
+        if (e.fromFriend) openRecipeReadOnly(r, e.fromFriend.name, { note: `👤 Von ${e.fromFriend.name} · im Kalender eingeplant`, attribution: e.fromFriend.attribution });
+        else openRecipeReadOnly(r, e.fromHousehold || (others.find((x) => x.id === r.id)?._from) || "");
+        if (e.servings !== r.servings) setServings(e.servings);
+        return;
+      }
+      if (state.viewing) { // gerade Freundesansicht → erst zurück zur eigenen Sammlung
+        if (state.type !== r.type) { state.type = r.type; state.category = "all"; state.tags.clear(); }
+        Profile.leaveFriendView();
+      }
+      openDetail(r.id); // öffnet über dem Kalender – man bleibt im Kalender
+      if (e.servings !== r.servings) setServings(e.servings);
+    }
+  }
   $("#plan-meal-content").addEventListener("change", async (ev) => {
     if (ev.target.dataset.pact !== "move") return;
     current.date = ev.target.value;
