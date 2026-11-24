@@ -128,7 +128,9 @@ const Plan = (() => {
         <span class="cal-num">${esc(String(num))}</span>
         <span class="cal-meals">${meals.slice(0, 3).map((e) => {
           const r = recipeOf(e);
-          return `<span class="cal-meal"><span class="cal-meal-emoji">${r ? recipeEmoji(r) : "🍽️"}</span><span class="cal-meal-title">${esc(r?.title || e.recipeTitle)}</span></span>`;
+          // Titelbild des Rezepts – ohne Foto das (gewählte) Emoji auf grünem Grund
+          const pic = r?.image ? `<img src="${esc(r.image)}" alt="" loading="lazy" />` : `<span>${r ? recipeEmoji(r) : "🍽️"}</span>`;
+          return `<span class="cal-meal"><span class="cal-meal-pic ${r?.image ? "" : "ph-0"}">${pic}</span><span class="cal-meal-title">${esc(r?.title || e.recipeTitle)}</span></span>`;
         }).join("")}${meals.length > 3 ? `<span class="cal-more">+${meals.length - 3}</span>` : ""}</span>
       </button>`;
     };

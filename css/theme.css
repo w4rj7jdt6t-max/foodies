@@ -255,3 +255,44 @@ input[type="text"], input[type="email"], input[type="password"], input[type="num
 .shop-add-btn { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px; font-size: 18px; font-weight: 500; box-shadow: none; }
 .rest-box .shop-add { background: var(--paper); }
 @media (max-width: 680px) { .shop-add input { font-size: 16px; } }
+
+/* ================= Emoji-Titelbilder: einheitlich hellgrün & größer ================= */
+.ph-0, .ph-1, .ph-2, .ph-3 { background: linear-gradient(135deg, var(--mint-100), var(--mint-200)); }
+.thumb { font-size: 40px; line-height: 1; }
+.plan-thumb { font-size: 30px; }
+.plan-thumb.big { font-size: 34px; }
+
+/* Editor: Emoji-Vorschau im Bildfeld + Auswahl */
+.image-drop.ph-0 { border: 1.5px dashed var(--mint-300); color: var(--mint-900); }
+.image-drop .image-emoji { font-size: 64px; line-height: 1; margin-bottom: 8px; }
+.image-hint { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.image-hint-text { font-size: 13.5px; font-weight: 600; }
+.image-hint small { font-size: 12px; }
+.rx-emoji-pick { margin-top: 10px; }
+.emoji-pick-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.emoji-pick-btn { padding: 7px 12px; font-size: 13.5px; }
+.emoji-current { font-size: 18px; line-height: 1; }
+.rx-emoji-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 4px;
+  margin-top: 10px; padding: 8px; max-height: 232px; overflow-y: auto;
+  background: var(--paper); border: 1px solid var(--line-strong); border-radius: var(--btn-radius);
+}
+.rx-emoji-opt { aspect-ratio: 1; border: 0; border-radius: 9px; background: none; font-size: 24px; line-height: 1; cursor: pointer; padding: 0; }
+.rx-emoji-opt:hover { background: var(--mint-50); }
+.rx-emoji-opt[aria-pressed="true"] { background: var(--mint-100); box-shadow: inset 0 0 0 2px var(--mint-700); }
+
+/* ================= Kalender: Titelbild statt Emoji ================= */
+.cal-meal { gap: 6px; padding: 3px; background: var(--cream); color: var(--ink); font-weight: 600; }
+.cal-meal-pic {
+  position: relative; flex: 0 0 auto; width: 28px; height: 28px; border-radius: 7px; overflow: hidden;
+  display: grid; place-items: center; font-size: 18px; line-height: 1;
+}
+.cal-meal-pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cal-cell.is-past .cal-meal { background: #ebe9e3; }
+@media (max-width: 680px) {
+  .cal-cell { min-height: 74px; }
+  .cal-meals { gap: 3px; }
+  .cal-meal { padding: 0; background: transparent; }
+  .cal-meal-pic { width: 36px; height: 36px; border-radius: 9px; font-size: 24px; }
+  .cal-meal + .cal-meal .cal-meal-pic { width: 26px; height: 26px; font-size: 16px; border-radius: 7px; }
+}

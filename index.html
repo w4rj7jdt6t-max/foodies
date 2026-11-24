@@ -11,8 +11,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=52" />
-  <link rel="stylesheet" href="css/theme.css?v=52" />
+  <link rel="stylesheet" href="css/styles.css?v=53" />
+  <link rel="stylesheet" href="css/theme.css?v=53" />
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -474,12 +474,19 @@
           <div class="image-drop" id="image-drop" role="button" tabindex="0" aria-label="Bild hinzufügen">
             <input type="file" accept="image/*" id="image-input" hidden />
             <img id="image-preview" alt="" hidden />
-            <span class="image-hint" id="image-hint"><span class="big">📷</span>Bild hinzufügen<br /><small>klicken oder hineinziehen</small></span>
+            <span class="image-hint" id="image-hint"><span class="big image-emoji" id="image-emoji">🍲</span><span class="image-hint-text">📷 Foto hinzufügen</span><small>klicken oder hineinziehen</small></span>
             <span class="image-adjust" id="image-adjust" hidden>✂️ Antippen zum Anpassen</span>
             <span class="image-btns">
               <button type="button" class="image-remove image-new" id="image-new" hidden aria-label="Neues Bild wählen" title="Neues Bild">📷</button>
               <button type="button" class="image-remove" id="image-remove" hidden aria-label="Bild entfernen" title="Bild entfernen">✕</button>
             </span>
+          </div>
+          <div class="rx-emoji-pick" id="emoji-pick">
+            <div class="emoji-pick-row">
+              <button type="button" class="btn btn-soft emoji-pick-btn" id="emoji-btn" aria-expanded="false" aria-controls="emoji-grid"><span id="emoji-current" class="emoji-current">🍲</span> Emoji wählen</button>
+              <button type="button" class="link-btn" id="emoji-auto" hidden>Automatisch</button>
+            </div>
+            <div class="rx-emoji-grid" id="emoji-grid" hidden></div>
           </div>
           </div>
           <div class="fields">
@@ -562,18 +569,18 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="js/config.js?v=52"></script>
-  <script src="js/db.js?v=52"></script>
-  <script src="js/store.js?v=52"></script>
-  <script src="js/app.js?v=52"></script>
-  <script src="js/household.js?v=52"></script>
-  <script src="js/cropper.js?v=52"></script>
-  <script src="js/profile.js?v=52"></script>
-  <script src="js/groceries.js?v=52"></script>
-  <script src="js/shopping.js?v=52"></script>
-  <script src="js/calendar.js?v=52"></script>
-  <script src="js/reste.js?v=52"></script>
-  <script src="js/translate.js?v=52"></script>
-  <script src="js/inspiration.js?v=52"></script>
+  <script src="js/config.js?v=53"></script>
+  <script src="js/db.js?v=53"></script>
+  <script src="js/store.js?v=53"></script>
+  <script src="js/app.js?v=53"></script>
+  <script src="js/household.js?v=53"></script>
+  <script src="js/cropper.js?v=53"></script>
+  <script src="js/profile.js?v=53"></script>
+  <script src="js/groceries.js?v=53"></script>
+  <script src="js/shopping.js?v=53"></script>
+  <script src="js/calendar.js?v=53"></script>
+  <script src="js/reste.js?v=53"></script>
+  <script src="js/translate.js?v=53"></script>
+  <script src="js/inspiration.js?v=53"></script>
 </body>
 </html>

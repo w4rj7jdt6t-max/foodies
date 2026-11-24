@@ -41,6 +41,7 @@ const BAKE_TAGS = [
 /** Platzhalter-Emoji: bei Backrezepten das erste Merkmal (🍪, 🍞 …), sonst die Kategorie */
 const DISH_TAGS = ["pasta", "suppe", "salat", "snack", "getraenk"];
 const recipeEmoji = (r) => {
+  if (r.emoji) return r.emoji; // selbst gewählt
   if (r.type === "backen") return (r.tags?.length && tagById(r.tags[0])?.emoji) || catById("backen").emoji;
   const dish = r.category === "haupt" || !COOK_CATS.includes(r.category) ? DISH_TAGS.find((t) => r.tags?.includes(t)) || LEGACY_CAT_TAG[r.category] : null;
   return (dish && tagById(dish)?.emoji) || catById(r.category).emoji;
@@ -140,7 +141,13 @@ try { if (localStorage.getItem("foodies-type") === "backen") state.type = "backe
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
-const phClass = (r) => "ph-" + (Math.abs([...(r.id || r.title)].reduce((a, c) => a + c.charCodeAt(0), 0)) % 4);
+// einheitlicher, leicht grüner Hintergrund hinter Emoji-Titelbildern
+const phClass = () => "ph-0";
+/** Emojis für Titelbilder ohne Foto */
+const RECIPE_EMOJIS = ["🍝","🍲","🍛","🍜","🥘","🫕","🥗","🍕","🍔","🌭","🥪","🌮","🌯","🥙","🧆","🫔","🍣","🍱","🍙","🍚","🍘","🥟","🥠","🥡","🍤","🍢",
+  "🍗","🍖","🥩","🥓","🐟","🐠","🦐","🦞","🦀","🦑","🐙","🦪","🍳","🥚","🧇","🥞","🥐","🥯","🍞","🥖","🥨","🧀","🫓","🥫","🍟",
+  "🥔","🍠","🥕","🌽","🥦","🥬","🥒","🍅","🍆","🫑","🌶️","🧄","🧅","🍄","🥜","🫘","🌰","🥑","🫒","🍋","🍎","🍐","🍊","🍌","🍓","🍒",
+  "🍑","🥭","🍍","🥥","🥝","🍉","🍇","🫐","🍰","🎂","🧁","🥧","🍮","🍫","🍪","🍩","🍨","🍧","🍦","🍯","🥛","☕","🍵","🧃","🥤","🍹","🍷","🍺","🍽️"];
 
 function toast(msg) {
   const t = $("#toast");
@@ -685,6 +692,8 @@ function setImage(dataUrl, src = null) {
   img.hidden = !dataUrl;
   if (dataUrl) img.src = dataUrl; else img.removeAttribute("src");
   $("#image-hint").hidden = !!dataUrl;
+  $("#image-drop").classList.toggle("ph-0", !dataUrl);
+  $("#emoji-pick").hidden = !!dataUrl; // Emoji nur, solange kein Foto da ist
   $("#image-remove").hidden = $("#image-new").hidden = $("#image-adjust").hidden = !dataUrl;
   $("#image-drop").setAttribute("aria-label", dataUrl ? "Bildausschnitt anpassen" : "Bild hinzufügen");
 }
@@ -729,14 +738,39 @@ function setEditType(type) {
   $("#f-tags").innerHTML = tagButtons(state.editTags, tagsFor(type));
   // Backrezepte haben keine Gang-Kategorie
   $("#f-category").closest(".field").hidden = type === "backen";
+  paintEmoji();
 }
 $("#f-type").addEventListener("click", (e) => { const b = e.target.closest(".seg-btn"); if (b) setEditType(b.dataset.type); });
+/* --- Emoji-Titelbild (wenn kein Foto) --- */
+const editorEmoji = () => state.editEmoji || recipeEmoji({ type: state.editType, category: $("#f-category").value, tags: [...state.editTags] });
+function paintEmoji() {
+  const e = editorEmoji();
+  $("#emoji-current").textContent = e;
+  $("#image-emoji").textContent = e;
+  $("#emoji-auto").hidden = !state.editEmoji;
+  $("#emoji-grid").querySelectorAll("[data-emoji]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.emoji === state.editEmoji)));
+}
+$("#emoji-grid").innerHTML = RECIPE_EMOJIS.map((e) => `<button type="button" class="rx-emoji-opt" data-emoji="${e}" aria-label="${e}" aria-pressed="false">${e}</button>`).join("");
+$("#emoji-btn").addEventListener("click", () => {
+  const g = $("#emoji-grid"); g.hidden = !g.hidden;
+  $("#emoji-btn").setAttribute("aria-expanded", String(!g.hidden));
+});
+$("#emoji-grid").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-emoji]");
+  if (!b) return;
+  state.editEmoji = b.dataset.emoji;
+  paintEmoji(); saveDraftSoon();
+});
+$("#emoji-auto").addEventListener("click", () => { state.editEmoji = null; paintEmoji(); saveDraftSoon(); });
+$("#f-category").addEventListener("change", paintEmoji);
+
 $("#f-tags").addEventListener("click", (e) => {
   const t = e.target.closest(".tag");
   if (!t) return;
   const on = !state.editTags.has(t.dataset.tag);
   on ? state.editTags.add(t.dataset.tag) : state.editTags.delete(t.dataset.tag);
   t.setAttribute("aria-pressed", String(on));
+  paintEmoji();
 });
 
 /* --- Öffnen / Speichern --- */
@@ -752,6 +786,7 @@ function readEditor() {
     servings: parseInt($("#f-servings").value, 10) || 2,
     time: parseInt($("#f-time").value, 10) || null,
     image: state.image,
+    emoji: state.editEmoji || null,
     // neu gewähltes Original ist zu groß für den Entwurf → nur gespeicherte Originale merken
     imageSrc: state.imageSrc?.url && !state.imageSrc.url.startsWith("data:") ? state.imageSrc : null,
     ingredients: [...$("#ing-rows").children].map((row) => ({
@@ -805,6 +840,8 @@ function openEditor(recipe = null, { draft = false, fromDraft = false } = {}) {
   const norm = recipe ? normalize({ ...recipe, tags: [...(recipe.tags || [])] }) : null;
   $("#f-category").value = norm && norm.category !== "backen" ? norm.category : "haupt";
   state.editTags = new Set(norm?.tags || []);
+  state.editEmoji = recipe?.emoji || null;
+  $("#emoji-grid").hidden = true; $("#emoji-btn").setAttribute("aria-expanded", "false");
   setEditType(recipe?.type || state.type);
   $("#f-servings").value = recipe?.servings || 2;
   $("#f-time").value = recipe?.time || "";
@@ -872,6 +909,7 @@ form.addEventListener("submit", async (e) => {
     servings: Math.max(1, Math.min(50, parseInt($("#f-servings").value, 10) || 2)),
     time: parseInt($("#f-time").value, 10) || null,
     image: state.image,
+    emoji: state.editEmoji || null,
     ...imageFields(),
     ingredients,
     steps: [...$("#step-rows").children].map((row) => ({
